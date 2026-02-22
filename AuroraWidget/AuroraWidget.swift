@@ -109,8 +109,6 @@ struct AuroraWidgetView: View {
         }
         .padding()
         .containerBackground(.fill.tertiary, for: .widget)
-//        .containerBackground(.thinMaterial, for: .widget)
-//        .containerBackground(Color.black.gradient, for: .widget)
     }
     
     func colorForKP(_ kp: Double) -> Color {
