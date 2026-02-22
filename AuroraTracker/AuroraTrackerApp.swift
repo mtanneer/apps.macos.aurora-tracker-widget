@@ -6,9 +6,13 @@
 //
 
 import SwiftUI
+import WidgetKit
 
 @main
 struct AuroraTrackerApp: App {
+    init() {
+        WidgetCenter.shared.reloadAllTimelines()
+    }
     var body: some Scene {
         WindowGroup {
             ContentView()

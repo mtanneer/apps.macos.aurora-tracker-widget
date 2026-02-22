@@ -6,14 +6,65 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		B93E00672F498E2800E48F71 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B93E00662F498E2700E48F71 /* WidgetKit.framework */; };
+		B93E00692F498E2800E48F71 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B93E00682F498E2800E48F71 /* SwiftUI.framework */; };
+		B93E00782F498E2800E48F71 /* AuroraWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B93E00642F498E2700E48F71 /* AuroraWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		B93E00762F498E2800E48F71 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B93E004A2F498DE800E48F71 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B93E00632F498E2700E48F71;
+			remoteInfo = AuroraWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		B93E007D2F498E2800E48F71 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				B93E00782F498E2800E48F71 /* AuroraWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		B93E00522F498DE800E48F71 /* AuroraTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AuroraTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B93E00642F498E2700E48F71 /* AuroraWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AuroraWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B93E00662F498E2700E48F71 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		B93E00682F498E2800E48F71 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		B93E00792F498E2800E48F71 /* Exceptions for "AuroraWidget" folder in "AuroraWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = B93E00632F498E2700E48F71 /* AuroraWidgetExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		B93E00542F498DE800E48F71 /* AuroraTracker */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = AuroraTracker;
+			sourceTree = "<group>";
+		};
+		B93E006A2F498E2800E48F71 /* AuroraWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				B93E00792F498E2800E48F71 /* Exceptions for "AuroraWidget" folder in "AuroraWidgetExtension" target */,
+			);
+			path = AuroraWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -26,6 +77,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B93E00612F498E2700E48F71 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B93E00692F498E2800E48F71 /* SwiftUI.framework in Frameworks */,
+				B93E00672F498E2800E48F71 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -33,6 +93,8 @@
 			isa = PBXGroup;
 			children = (
 				B93E00542F498DE800E48F71 /* AuroraTracker */,
+				B93E006A2F498E2800E48F71 /* AuroraWidget */,
+				B93E00652F498E2700E48F71 /* Frameworks */,
 				B93E00532F498DE800E48F71 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,8 +103,18 @@
 			isa = PBXGroup;
 			children = (
 				B93E00522F498DE800E48F71 /* AuroraTracker.app */,
+				B93E00642F498E2700E48F71 /* AuroraWidgetExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		B93E00652F498E2700E48F71 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				B93E00662F498E2700E48F71 /* WidgetKit.framework */,
+				B93E00682F498E2800E48F71 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -55,10 +127,12 @@
 				B93E004E2F498DE800E48F71 /* Sources */,
 				B93E004F2F498DE800E48F71 /* Frameworks */,
 				B93E00502F498DE800E48F71 /* Resources */,
+				B93E007D2F498E2800E48F71 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				B93E00772F498E2800E48F71 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				B93E00542F498DE800E48F71 /* AuroraTracker */,
@@ -69,6 +143,28 @@
 			productName = AuroraTracker;
 			productReference = B93E00522F498DE800E48F71 /* AuroraTracker.app */;
 			productType = "com.apple.product-type.application";
+		};
+		B93E00632F498E2700E48F71 /* AuroraWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B93E007A2F498E2800E48F71 /* Build configuration list for PBXNativeTarget "AuroraWidgetExtension" */;
+			buildPhases = (
+				B93E00602F498E2700E48F71 /* Sources */,
+				B93E00612F498E2700E48F71 /* Frameworks */,
+				B93E00622F498E2700E48F71 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				B93E006A2F498E2800E48F71 /* AuroraWidget */,
+			);
+			name = AuroraWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = AuroraWidgetExtension;
+			productReference = B93E00642F498E2700E48F71 /* AuroraWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -81,6 +177,9 @@
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					B93E00512F498DE800E48F71 = {
+						CreatedOnToolsVersion = 26.2;
+					};
+					B93E00632F498E2700E48F71 = {
 						CreatedOnToolsVersion = 26.2;
 					};
 				};
@@ -100,12 +199,20 @@
 			projectRoot = "";
 			targets = (
 				B93E00512F498DE800E48F71 /* AuroraTracker */,
+				B93E00632F498E2700E48F71 /* AuroraWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		B93E00502F498DE800E48F71 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B93E00622F498E2700E48F71 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -122,7 +229,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B93E00602F498E2700E48F71 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B93E00772F498E2800E48F71 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B93E00632F498E2700E48F71 /* AuroraWidgetExtension */;
+			targetProxy = B93E00762F498E2800E48F71 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		B93E005B2F498DE800E48F71 /* Debug */ = {
@@ -309,6 +431,90 @@
 			};
 			name = Release;
 		};
+		B93E007B2F498E2800E48F71 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = B768V573Z6;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AuroraWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = AuroraWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = manas.projects.AuroraTracker.AuroraWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		B93E007C2F498E2800E48F71 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = B768V573Z6;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AuroraWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = AuroraWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = manas.projects.AuroraTracker.AuroraWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -326,6 +532,15 @@
 			buildConfigurations = (
 				B93E005E2F498DE800E48F71 /* Debug */,
 				B93E005F2F498DE800E48F71 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B93E007A2F498E2800E48F71 /* Build configuration list for PBXNativeTarget "AuroraWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B93E007B2F498E2800E48F71 /* Debug */,
+				B93E007C2F498E2800E48F71 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
