@@ -1,0 +1,1 @@
+# apple.macos.widgets.AuroraTracker
