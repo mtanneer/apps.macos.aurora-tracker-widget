@@ -1,16 +1,14 @@
 import WidgetKit
 import SwiftUI
+import os
 
-struct Logger{
-    
-}
-
-let logger = Logger()
+let logger = Logger(subsystem: "manas.projects.AuroraTracker", category: "network")
 
 // MARK: - Timeline Entry
 struct AuroraEntry: TimelineEntry {
     let date: Date
     let kp: Double
+    let range: String
 }
 
 struct NOAA {
@@ -23,27 +21,27 @@ struct NOAA {
 // MARK: - Provider
 struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> AuroraEntry {
-        AuroraEntry(date: Date(), kp: 0.0)
+        AuroraEntry(date: Date(), kp: 0.0, range: "22 Feb - 24 Feb")
     }
 
     func getSnapshot(in context: Context, completion: @escaping (AuroraEntry) -> Void) {
-        completion(AuroraEntry(date: Date(), kp: 2.0))
+        completion(AuroraEntry(date: Date(), kp: 2.0, range: "22 Feb - 24 Feb"))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<AuroraEntry>) -> Void) {
-        print("=== getTimeline CALLED ===")
-        fetchKP { kpValue in
-            let entry = AuroraEntry(date: Date(), kp: kpValue)
-//            let nextUpdate = Calendar.current.date(byAdding: .minute, value: 30, to: Date())! // refresh every 30 minutes
-//            let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
-            let timeline = Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(30)))
+        logger.debug("=== getTimeline CALLED ===")
+        fetchKP { kpValue, rangeString in
+            let entry = AuroraEntry(date: Date(), kp: kpValue, range: rangeString)
+            let nextUpdate = Calendar.current.date(byAdding: .minute, value: 30, to: Date())! // refresh every 30 minutes
+            let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
+//            let timeline = Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(30)))
             completion(timeline)
         }
     }
     
-    private func fetchKP(completion: @escaping (Double) -> Void) {
+    private func fetchKP(completion: @escaping (Double, String) -> Void) {
         guard let url = NOAA.forecasturl else {
-            completion(0.0)
+            completion(0.0, "")
             return
         }
         
@@ -51,7 +49,7 @@ struct Provider: TimelineProvider {
             guard let data = data,
                   let text = String(data: data, encoding: .utf8),
                   error == nil else {
-                completion(0.0)
+                completion(0.0, "")
                 return
             }
             
@@ -59,11 +57,18 @@ struct Provider: TimelineProvider {
             guard let kpHeaderIndex = lines.firstIndex(where: {
                 $0.contains("NOAA Kp index forecast")
             }) else {
-                completion(0.0)
+                completion(0.0, "")
                 return
             }
             
             var kpValues: [Double] = []
+            let headerLine = lines[kpHeaderIndex]
+            var rangeString = headerLine.replacingOccurrences(of: "NOAA Kp index forecast", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+            logger.debug("\(rangeString)")
+            if rangeString.isEmpty {
+                rangeString = ""
+            }
+            
             for line in lines[(kpHeaderIndex + 2)...] { // Skip header lines (2 lines below header is where table starts)
                 if line.trimmingCharacters(in: .whitespaces).isEmpty { break }
                 let parts = line.split(whereSeparator: { $0 == " " || $0 == "\t" })
@@ -73,11 +78,11 @@ struct Provider: TimelineProvider {
                     kpValues.append(kp)
                 }
             }
-            print("=== FETCH STARTED ====")
-            print(text)
-            print("Parsed values: \(kpValues)")
+            logger.debug("=== FETCH STARTED ====")
+            logger.debug("\(text)")
+            logger.debug("Parsed values: \(kpValues)")
             
-            completion(kpValues.first ?? 0.0) // current 3-hour period
+            completion(kpValues.last ?? 0.0, rangeString) // current 3-hour period
             
         }.resume()
     }
@@ -88,7 +93,13 @@ struct AuroraWidgetView: View {
     var entry: Provider.Entry
 
     var body: some View {
-        VStack {
+        VStack(spacing: 4) {
+            if !entry.range.isEmpty {
+                Text(entry.range)
+                    .font(.headline)
+                    .foregroundColor(.secondary)
+            }
+
             Text("Aurora Kp")
                 .font(.headline)
             
