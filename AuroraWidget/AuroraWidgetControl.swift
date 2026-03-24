@@ -1,10 +1,8 @@
-//
-//  AuroraWidgetControl.swift
-//  AuroraWidget
-//
-//  Created by Manas Tanneeru on 2/20/26.
-//
+// AuroraWidgetControl.swift
+// ControlWidget is iOS 18+ only and does not exist on macOS.
+// Wrapped in #if os(iOS) to prevent build errors on macOS targets.
 
+#if os(iOS)
 import AppIntents
 import SwiftUI
 import WidgetKit
@@ -75,3 +73,4 @@ struct StartTimerIntent: SetValueIntent {
         return .result()
     }
 }
+#endif
