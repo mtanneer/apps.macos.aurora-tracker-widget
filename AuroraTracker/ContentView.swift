@@ -1,6 +1,36 @@
 import SwiftUI
 import Charts
 
+// MARK: - Theme
+
+enum AppTheme: String, CaseIterable {
+    case system, light, dark
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light:  return .light
+        case .dark:   return .dark
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .system: return "System"
+        case .light:  return "Light"
+        case .dark:   return "Dark"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .system: return "circle.lefthalf.filled"
+        case .light:  return "sun.max"
+        case .dark:   return "moon"
+        }
+    }
+}
+
 // MARK: - Data Model
 
 struct KpSlot: Identifiable {
@@ -80,8 +110,10 @@ class AuroraViewModel {
         }
         dateLabels = labels
 
-        // Human-friendly time labels matching slot order
-        let slotHours = ["12AM", "3AM", "6AM", "9AM", "12PM", "3PM", "6PM", "9PM"]
+        // Slot labels converted to device local timezone
+        let utcSlotHours = [0, 3, 6, 9, 12, 15, 18, 21]
+        let slotLabels = utcSlotHours.map { AuroraViewModel.localSlotLabel(utcHour: $0) }
+
         var today: [KpSlot] = []
         var tomorrow: [KpSlot] = []
         var day2: [KpSlot] = []
@@ -93,7 +125,7 @@ class AuroraViewModel {
                 .split(whereSeparator: { $0 == " " || $0 == "\t" })
                 .map(String.init)
             guard parts.count >= 4 else { continue }
-            let label = slotHours[i % slotHours.count]
+            let label = slotLabels[i % slotLabels.count]
             let d1 = labels.count > 0 ? labels[0] : "Day 1"
             let d2 = labels.count > 1 ? labels[1] : "Day 2"
             let d3 = labels.count > 2 ? labels[2] : "Day 3"
@@ -102,6 +134,7 @@ class AuroraViewModel {
             if let kp = Double(parts[3]) { day2.append(KpSlot(label: label, kp: kp, day: d3)) }
         }
 
+        // Current slot index is UTC-based — NOAA slots are defined in UTC
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone(abbreviation: "UTC")!
         let slotIdx = cal.component(.hour, from: Date()) / 3
@@ -109,6 +142,21 @@ class AuroraViewModel {
         todaySlots = today
         tomorrowSlots = tomorrow
         day2Slots = day2
+    }
+
+    /// Converts a UTC slot hour (0, 3, 6 … 21) to a short time string in the device's local timezone.
+    static func localSlotLabel(utcHour: Int) -> String {
+        var utcCal = Calendar(identifier: .gregorian)
+        utcCal.timeZone = .gmt
+        let todayUTC = utcCal.startOfDay(for: Date())
+        guard let slotDate = utcCal.date(byAdding: .hour, value: utcHour, to: todayUTC) else {
+            return String(format: "%d:00", utcHour)
+        }
+        let fmt = DateFormatter()
+        fmt.timeStyle = .short
+        fmt.dateStyle = .none
+        fmt.timeZone = .current
+        return fmt.string(from: slotDate)
     }
 }
 
@@ -137,13 +185,20 @@ struct MapItem: Identifiable {
 }
 
 struct ContentView: View {
+    @AppStorage("appTheme") private var theme: AppTheme = .system
     @State private var vm = AuroraViewModel()
     @State private var selectedMap: MapItem? = nil
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    private var isCompact: Bool { horizontalSizeClass == .compact }
+    #else
+    private let isCompact = false
+    #endif
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 20) {
+                VStack(spacing: 16) {
                     if vm.isLoading && vm.todaySlots.isEmpty {
                         ProgressView("Fetching aurora data…")
                             .padding(40)
@@ -159,12 +214,29 @@ struct ContentView: View {
                         forecastCard
                         auroraImagesCard
                         kpScaleLegend
+                        noaaAttribution
                     }
                 }
-                .padding(20)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
             }
             .navigationTitle("Aurora Tracker")
             .toolbar {
+                ToolbarItem(placement: .automatic) {
+                    Menu {
+                        ForEach(AppTheme.allCases, id: \.self) { t in
+                            Button {
+                                theme = t
+                            } label: {
+                                Label(t.label, systemImage: t.icon)
+                            }
+                            .disabled(theme == t)
+                        }
+                    } label: {
+                        Image(systemName: theme.icon)
+                    }
+                    .help("Appearance")
+                }
                 ToolbarItem(placement: .automatic) {
                     Button {
                         Task { await vm.fetch() }
@@ -181,7 +253,9 @@ struct ContentView: View {
             }
             .task { await vm.fetch() }
         }
+        #if os(macOS)
         .frame(minWidth: 680, minHeight: 620)
+        #endif
         .sheet(item: $selectedMap) { map in
             MapDetailView(map: map)
         }
@@ -191,10 +265,76 @@ struct ContentView: View {
 
     private var currentKpCard: some View {
         let (levelLabel, color) = auroraLevel(for: vm.currentKp)
-        return HStack(alignment: .top, spacing: 24) {
-            // Big Kp number
+        return Group {
+            if isCompact {
+                compactKpCard(levelLabel: levelLabel, color: color)
+            } else {
+                regularKpCard(levelLabel: levelLabel, color: color)
+            }
+        }
+        .padding(16)
+        .background(color.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .strokeBorder(color.opacity(0.25), lineWidth: 1)
+        )
+    }
+
+    private func compactKpCard(levelLabel: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Current Kp Index (\(TimeZone.current.abbreviation() ?? "local"))", systemImage: "aqi.medium")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(String(format: "%.2f", vm.currentKp))
+                    .font(.system(size: 64, weight: .bold, design: .rounded))
+                    .foregroundStyle(color)
+                Text("Kp")
+                    .font(.title2)
+                    .foregroundStyle(color.opacity(0.7))
+                    .padding(.bottom, 6)
+                Spacer()
+                HStack(spacing: 6) {
+                    Circle().fill(color).frame(width: 9, height: 9)
+                    Text(levelLabel)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(color)
+                }
+            }
+
+            Divider().opacity(0.3)
+
+            HStack(spacing: 0) {
+                compactStat(title: "Today's Peak", value: String(format: "%.1f Kp", vm.todaySlots.map(\.kp).max() ?? 0), color: color)
+                Spacer()
+                compactStat(title: "Today's Avg", value: String(format: "%.1f Kp", vm.todaySlots.isEmpty ? 0 : vm.todaySlots.reduce(0) { $0 + $1.kp } / Double(vm.todaySlots.count)), color: color)
+                Spacer()
+                if let d1 = vm.dateLabels.first {
+                    compactStat(title: "Start Date", value: d1, color: .secondary)
+                }
+            }
+        }
+    }
+
+    private func compactStat(title: String, value: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(color)
+        }
+    }
+
+    private func regularKpCard(levelLabel: String, color: Color) -> some View {
+        HStack(alignment: .top, spacing: 24) {
             VStack(alignment: .leading, spacing: 6) {
-                Label("Current Kp Index (UTC now)", systemImage: "aqi.medium")
+                Label("Current Kp Index (\(TimeZone.current.abbreviation() ?? "local"))", systemImage: "aqi.medium")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -202,7 +342,6 @@ struct ContentView: View {
                     Text(String(format: "%.2f", vm.currentKp))
                         .font(.system(size: 72, weight: .bold, design: .rounded))
                         .foregroundStyle(color)
-
                     Text("Kp")
                         .font(.title2)
                         .foregroundStyle(color.opacity(0.7))
@@ -220,14 +359,12 @@ struct ContentView: View {
 
             Spacer()
 
-            // Forecast summary stats
             VStack(alignment: .trailing, spacing: 8) {
                 if !vm.rangeString.isEmpty {
                     Text(vm.rangeString)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-
                 VStack(alignment: .trailing, spacing: 4) {
                     statRow(title: "Today's Peak", value: String(format: "%.1f Kp", vm.todaySlots.map(\.kp).max() ?? 0))
                     statRow(title: "Today's Avg", value: String(format: "%.1f Kp", vm.todaySlots.isEmpty ? 0 : vm.todaySlots.reduce(0) { $0 + $1.kp } / Double(vm.todaySlots.count)))
@@ -237,21 +374,12 @@ struct ContentView: View {
                 }
             }
         }
-        .padding(20)
-        .background(color.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(color.opacity(0.25), lineWidth: 1)
-        )
     }
 
     private func statRow(title: String, value: String) -> some View {
         HStack(spacing: 8) {
-            Text(title)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .fontWeight(.semibold)
+            Text(title).foregroundStyle(.secondary)
+            Text(value).fontWeight(.semibold)
         }
         .font(.caption)
     }
@@ -260,10 +388,9 @@ struct ContentView: View {
 
     private var forecastCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
+            if isCompact {
                 Text("3-Day Kp Forecast")
                     .font(.headline)
-                Spacer()
                 if vm.dateLabels.count >= 3 {
                     Picker("Day", selection: $vm.selectedDay) {
                         Text(vm.dateLabels[0]).tag(0)
@@ -271,7 +398,21 @@ struct ContentView: View {
                         Text(vm.dateLabels[2]).tag(2)
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 300)
+                }
+            } else {
+                HStack {
+                    Text("3-Day Kp Forecast")
+                        .font(.headline)
+                    Spacer()
+                    if vm.dateLabels.count >= 3 {
+                        Picker("Day", selection: $vm.selectedDay) {
+                            Text(vm.dateLabels[0]).tag(0)
+                            Text(vm.dateLabels[1]).tag(1)
+                            Text(vm.dateLabels[2]).tag(2)
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 300)
+                    }
                 }
             }
 
@@ -293,7 +434,6 @@ struct ContentView: View {
                             .cornerRadius(3)
                         }
 
-                        // G-scale threshold lines
                         RuleMark(y: .value("G1 (Kp5)", 5.0))
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [5, 3]))
                             .foregroundStyle(.yellow.opacity(0.8))
@@ -316,7 +456,7 @@ struct ContentView: View {
                     .frame(height: 200)
                     .chartYScale(domain: 0...9)
                     .chartYAxis {
-                        AxisMarks(values: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) { val in
+                        AxisMarks(values: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) { _ in
                             AxisGridLine()
                             AxisValueLabel()
                         }
@@ -328,8 +468,7 @@ struct ContentView: View {
                         }
                     }
 
-                    // Summary stats for selected day
-                    HStack(spacing: 20) {
+                    HStack(spacing: isCompact ? 10 : 20) {
                         summaryBadge(label: "Peak", value: String(format: "%.1f", vm.peakKp), color: auroraColor(for: vm.peakKp))
                         summaryBadge(label: "Average", value: String(format: "%.1f", vm.avgKp), color: auroraColor(for: vm.avgKp))
                         summaryBadge(label: "Storm Level", value: auroraLevel(for: vm.peakKp).label, color: auroraColor(for: vm.peakKp))
@@ -344,7 +483,7 @@ struct ContentView: View {
                     .padding()
             }
         }
-        .padding(20)
+        .padding(16)
         .background(.secondary.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
@@ -376,21 +515,27 @@ struct ContentView: View {
                 urlString: "https://services.swpc.noaa.gov/images/station-k-index.png"),
     ]
 
+    private var mapGridColumns: [GridItem] {
+        #if os(iOS)
+        let count = isCompact ? 1 : 2
+        #else
+        let count = 3
+        #endif
+        return Array(repeating: GridItem(.flexible()), count: count)
+    }
+
     private var auroraImagesCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Aurora Maps")
                 .font(.headline)
 
-            LazyVGrid(
-                columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
-                spacing: 12
-            ) {
+            LazyVGrid(columns: mapGridColumns, spacing: 12) {
                 ForEach(mapItems) { map in
                     auroraImageTile(map: map)
                 }
             }
         }
-        .padding(20)
+        .padding(16)
         .background(.secondary.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
@@ -463,28 +608,41 @@ struct ContentView: View {
             Text("Kp / G-Scale Reference")
                 .font(.headline)
 
-            HStack(spacing: 10) {
-                ForEach(legendItems, id: \.label) { item in
-                    HStack(spacing: 6) {
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(item.color)
-                            .frame(width: 12, height: 12)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(item.label).font(.caption).fontWeight(.semibold)
-                            Text(item.range).font(.system(size: 9)).foregroundStyle(.secondary)
-                        }
+            if isCompact {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                    ForEach(legendItems, id: \.label) { item in
+                        legendBadge(item: item)
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(item.color.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
-                Spacer()
+            } else {
+                HStack(spacing: 10) {
+                    ForEach(legendItems, id: \.label) { item in
+                        legendBadge(item: item)
+                    }
+                    Spacer()
+                }
             }
         }
-        .padding(20)
+        .padding(16)
         .background(.secondary.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func legendBadge(item: (label: String, range: String, color: Color)) -> some View {
+        HStack(spacing: 6) {
+            RoundedRectangle(cornerRadius: 3)
+                .fill(item.color)
+                .frame(width: 12, height: 12)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(item.label).font(.caption).fontWeight(.semibold)
+                Text(item.range).font(.system(size: 9)).foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .frame(maxWidth: isCompact ? .infinity : nil, alignment: .leading)
+        .background(item.color.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
     private var legendItems: [(label: String, range: String, color: Color)] {
@@ -497,9 +655,30 @@ struct ContentView: View {
             ("G4+ Extreme", "Kp 8-9", .red),
         ]
     }
+
+    // MARK: - NOAA Attribution
+
+    private var noaaAttribution: some View {
+        VStack(spacing: 4) {
+            Link(destination: URL(string: "https://www.swpc.noaa.gov")!) {
+                HStack(spacing: 4) {
+                    Image(systemName: "info.circle")
+                    Text("Data provided by NOAA Space Weather Prediction Center")
+                }
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+            Text("Forecasts update every 30 minutes")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 4)
+        .padding(.bottom, 8)
+    }
 }
 
-// MARK: - Map Detail View (full-screen with zoom)
+// MARK: - Map Detail View
 
 struct MapDetailView: View {
     let map: MapItem
@@ -512,15 +691,59 @@ struct MapDetailView: View {
     @State private var loadedImage: Image? = nil
 
     var body: some View {
+        #if os(iOS)
+        NavigationStack {
+            zoomableImage
+                .navigationTitle(map.title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button("Done") { dismiss() }
+                    }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        if let loadedImage {
+                            ShareLink(item: loadedImage, preview: SharePreview(map.title, image: loadedImage)) {
+                                Image(systemName: "square.and.arrow.up")
+                            }
+                        }
+                    }
+                    ToolbarItemGroup(placement: .bottomBar) {
+                        Button {
+                            withAnimation { scale = max(1.0, scale / 1.5); clampOffset() }
+                        } label: {
+                            Image(systemName: "minus.magnifyingglass")
+                        }
+                        .disabled(scale <= 1.0)
+
+                        Spacer()
+                        Text("\(Int(scale * 100))%")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+
+                        Button {
+                            withAnimation { scale = min(8.0, scale * 1.5) }
+                        } label: {
+                            Image(systemName: "plus.magnifyingglass")
+                        }
+
+                        Spacer()
+
+                        Button {
+                            withAnimation { scale = 1.0; offset = .zero; lastScale = 1.0; lastOffset = .zero }
+                        } label: {
+                            Image(systemName: "arrow.uturn.backward")
+                        }
+                        .disabled(scale == 1.0 && offset == .zero)
+                    }
+                }
+        }
+        #else
         VStack(spacing: 0) {
-            // Toolbar
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(map.title)
-                        .font(.headline)
-                    Text(map.subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text(map.title).font(.headline)
+                    Text(map.subtitle).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 HStack(spacing: 12) {
@@ -563,70 +786,73 @@ struct MapDetailView: View {
 
             Divider()
 
-            // Zoomable image
-            GeometryReader { geo in
-                if let url = URL(string: map.urlString) {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .scaleEffect(scale)
-                                .offset(offset)
-                                .gesture(
-                                    MagnificationGesture()
-                                        .onChanged { val in
-                                            scale = (lastScale * val).clamped(to: 1...8)
-                                        }
-                                        .onEnded { _ in
-                                            lastScale = scale
-                                            clampOffset()
-                                        }
-                                )
-                                .gesture(
-                                    DragGesture()
-                                        .onChanged { val in
-                                            offset = CGSize(
-                                                width: lastOffset.width + val.translation.width,
-                                                height: lastOffset.height + val.translation.height
-                                            )
-                                        }
-                                        .onEnded { _ in
-                                            lastOffset = offset
-                                            clampOffset()
-                                        }
-                                )
-                                .onTapGesture(count: 2) {
-                                    withAnimation {
-                                        if scale > 1.0 {
-                                            scale = 1.0; lastScale = 1.0
-                                            offset = .zero; lastOffset = .zero
-                                        } else {
-                                            scale = 2.0; lastScale = 2.0
-                                        }
+            zoomableImage
+        }
+        .frame(minWidth: 700, minHeight: 520)
+        #endif
+    }
+
+    private var zoomableImage: some View {
+        GeometryReader { geo in
+            if let url = URL(string: map.urlString) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .scaleEffect(scale)
+                            .offset(offset)
+                            .gesture(
+                                MagnificationGesture()
+                                    .onChanged { val in
+                                        scale = (lastScale * val).clamped(to: 1...8)
+                                    }
+                                    .onEnded { _ in
+                                        lastScale = scale
+                                        clampOffset()
+                                    }
+                            )
+                            .gesture(
+                                DragGesture()
+                                    .onChanged { val in
+                                        offset = CGSize(
+                                            width: lastOffset.width + val.translation.width,
+                                            height: lastOffset.height + val.translation.height
+                                        )
+                                    }
+                                    .onEnded { _ in
+                                        lastOffset = offset
+                                        clampOffset()
+                                    }
+                            )
+                            .onTapGesture(count: 2) {
+                                withAnimation {
+                                    if scale > 1.0 {
+                                        scale = 1.0; lastScale = 1.0
+                                        offset = .zero; lastOffset = .zero
+                                    } else {
+                                        scale = 2.0; lastScale = 2.0
                                     }
                                 }
-                                .frame(width: geo.size.width, height: geo.size.height)
-                                .onAppear { loadedImage = image }
-                        case .failure:
-                            ContentUnavailableView("Image Unavailable", systemImage: "photo.slash")
-                        case .empty:
-                            ProgressView("Loading…")
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        @unknown default:
-                            EmptyView()
-                        }
+                            }
+                            .frame(width: geo.size.width, height: geo.size.height)
+                            .onAppear { loadedImage = image }
+                    case .failure:
+                        ContentUnavailableView("Image Unavailable", systemImage: "photo.slash")
+                    case .empty:
+                        ProgressView("Loading…")
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    @unknown default:
+                        EmptyView()
                     }
                 }
             }
-            .clipped()
         }
-        .frame(minWidth: 700, minHeight: 520)
+        .clipped()
     }
 
     private func clampOffset() {
-        // When zoomed out fully, snap back to center
         if scale <= 1.0 {
             withAnimation { offset = .zero; lastOffset = .zero }
         }

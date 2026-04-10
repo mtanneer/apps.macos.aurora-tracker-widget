@@ -10,12 +10,16 @@ import WidgetKit
 
 @main
 struct AuroraTrackerApp: App {
+    @AppStorage("appTheme") private var theme: AppTheme = .system
+
     init() {
         WidgetCenter.shared.reloadAllTimelines()
     }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .preferredColorScheme(theme.colorScheme)
         }
     }
 }
