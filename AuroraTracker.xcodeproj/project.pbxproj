@@ -7,12 +7,31 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1000001AABBCCDDEEFF0001 /* NOAAForecast.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000AABBCCDDEEFF0000 /* NOAAForecast.swift */; };
+		A1000002AABBCCDDEEFF0002 /* NOAAForecast.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000AABBCCDDEEFF0000 /* NOAAForecast.swift */; };
+		A2000001AABBCCDDEEFF0001 /* NOAAForecastTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000AABBCCDDEEFF0000 /* NOAAForecastTests.swift */; };
+		A3000001AABBCCDDEEFF0001 /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000AABBCCDDEEFF0000 /* AppGroup.swift */; };
+		A3000002AABBCCDDEEFF0002 /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000AABBCCDDEEFF0000 /* AppGroup.swift */; };
+		A3000011AABBCCDDEEFF0011 /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000010AABBCCDDEEFF0010 /* LocationService.swift */; };
+		A3000012AABBCCDDEEFF0012 /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000010AABBCCDDEEFF0010 /* LocationService.swift */; };
+		A3000021AABBCCDDEEFF0021 /* SpaceWeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000020AABBCCDDEEFF0020 /* SpaceWeatherService.swift */; };
+		A3000022AABBCCDDEEFF0022 /* SpaceWeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000020AABBCCDDEEFF0020 /* SpaceWeatherService.swift */; };
+		A3000031AABBCCDDEEFF0031 /* AuroraOutlook.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000030AABBCCDDEEFF0030 /* AuroraOutlook.swift */; };
+		A3000032AABBCCDDEEFF0032 /* AuroraOutlook.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000030AABBCCDDEEFF0030 /* AuroraOutlook.swift */; };
+		A4000001AABBCCDDEEFF0001 /* SpaceWeatherServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4000000AABBCCDDEEFF0000 /* SpaceWeatherServiceTests.swift */; };
 		B93E00672F498E2800E48F71 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B93E00662F498E2700E48F71 /* WidgetKit.framework */; };
 		B93E00692F498E2800E48F71 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B93E00682F498E2800E48F71 /* SwiftUI.framework */; };
 		B93E00782F498E2800E48F71 /* AuroraWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B93E00642F498E2700E48F71 /* AuroraWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		A2000002AABBCCDDEEFF0002 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B93E004A2F498DE800E48F71 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B93E00512F498DE800E48F71;
+			remoteInfo = AuroraTracker;
+		};
 		B93E00762F498E2800E48F71 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = B93E004A2F498DE800E48F71 /* Project object */;
@@ -37,6 +56,14 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A1000000AABBCCDDEEFF0000 /* NOAAForecast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NOAAForecast.swift; sourceTree = "<group>"; };
+		A2000000AABBCCDDEEFF0000 /* NOAAForecastTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NOAAForecastTests.swift; sourceTree = "<group>"; };
+		A2000004AABBCCDDEEFF0004 /* AuroraTrackerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AuroraTrackerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A3000000AABBCCDDEEFF0000 /* AppGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGroup.swift; sourceTree = "<group>"; };
+		A3000010AABBCCDDEEFF0010 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
+		A3000020AABBCCDDEEFF0020 /* SpaceWeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceWeatherService.swift; sourceTree = "<group>"; };
+		A3000030AABBCCDDEEFF0030 /* AuroraOutlook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuroraOutlook.swift; sourceTree = "<group>"; };
+		A4000000AABBCCDDEEFF0000 /* SpaceWeatherServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceWeatherServiceTests.swift; sourceTree = "<group>"; };
 		B93E00522F498DE800E48F71 /* AuroraTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AuroraTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B93E00642F498E2700E48F71 /* AuroraWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AuroraWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B93E00662F498E2700E48F71 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
@@ -70,6 +97,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		A2000009AABBCCDDEEFF0009 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B93E004F2F498DE800E48F71 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -89,11 +123,34 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		A1000003AABBCCDDEEFF0003 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				A1000000AABBCCDDEEFF0000 /* NOAAForecast.swift */,
+				A3000000AABBCCDDEEFF0000 /* AppGroup.swift */,
+				A3000010AABBCCDDEEFF0010 /* LocationService.swift */,
+				A3000020AABBCCDDEEFF0020 /* SpaceWeatherService.swift */,
+				A3000030AABBCCDDEEFF0030 /* AuroraOutlook.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		A2000005AABBCCDDEEFF0005 /* AuroraTrackerTests */ = {
+			isa = PBXGroup;
+			children = (
+				A2000000AABBCCDDEEFF0000 /* NOAAForecastTests.swift */,
+				A4000000AABBCCDDEEFF0000 /* SpaceWeatherServiceTests.swift */,
+			);
+			path = AuroraTrackerTests;
+			sourceTree = "<group>";
+		};
 		B93E00492F498DE800E48F71 = {
 			isa = PBXGroup;
 			children = (
 				B93E00542F498DE800E48F71 /* AuroraTracker */,
 				B93E006A2F498E2800E48F71 /* AuroraWidget */,
+				A1000003AABBCCDDEEFF0003 /* Shared */,
+				A2000005AABBCCDDEEFF0005 /* AuroraTrackerTests */,
 				B93E00652F498E2700E48F71 /* Frameworks */,
 				B93E00532F498DE800E48F71 /* Products */,
 			);
@@ -104,6 +161,7 @@
 			children = (
 				B93E00522F498DE800E48F71 /* AuroraTracker.app */,
 				B93E00642F498E2700E48F71 /* AuroraWidgetExtension.appex */,
+				A2000004AABBCCDDEEFF0004 /* AuroraTrackerTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -120,6 +178,26 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		A2000006AABBCCDDEEFF0006 /* AuroraTrackerTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A2000007AABBCCDDEEFF0007 /* Build configuration list for PBXNativeTarget "AuroraTrackerTests" */;
+			buildPhases = (
+				A2000008AABBCCDDEEFF0008 /* Sources */,
+				A2000009AABBCCDDEEFF0009 /* Frameworks */,
+				A200000AAABBCCDDEEFF000A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A2000003AABBCCDDEEFF0003 /* PBXTargetDependency */,
+			);
+			name = AuroraTrackerTests;
+			packageProductDependencies = (
+			);
+			productName = AuroraTrackerTests;
+			productReference = A2000004AABBCCDDEEFF0004 /* AuroraTrackerTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		B93E00512F498DE800E48F71 /* AuroraTracker */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = B93E005D2F498DE800E48F71 /* Build configuration list for PBXNativeTarget "AuroraTracker" */;
@@ -174,8 +252,12 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2620;
-				LastUpgradeCheck = 2630;
+				LastUpgradeCheck = 2660;
 				TargetAttributes = {
+					A2000006AABBCCDDEEFF0006 = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = B93E00512F498DE800E48F71;
+					};
 					B93E00512F498DE800E48F71 = {
 						CreatedOnToolsVersion = 26.2;
 					};
@@ -200,11 +282,19 @@
 			targets = (
 				B93E00512F498DE800E48F71 /* AuroraTracker */,
 				B93E00632F498E2700E48F71 /* AuroraWidgetExtension */,
+				A2000006AABBCCDDEEFF0006 /* AuroraTrackerTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		A200000AAABBCCDDEEFF000A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B93E00502F498DE800E48F71 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -222,10 +312,24 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		A2000008AABBCCDDEEFF0008 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A2000001AABBCCDDEEFF0001 /* NOAAForecastTests.swift in Sources */,
+				A4000001AABBCCDDEEFF0001 /* SpaceWeatherServiceTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B93E004E2F498DE800E48F71 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1000001AABBCCDDEEFF0001 /* NOAAForecast.swift in Sources */,
+				A3000001AABBCCDDEEFF0001 /* AppGroup.swift in Sources */,
+				A3000011AABBCCDDEEFF0011 /* LocationService.swift in Sources */,
+				A3000021AABBCCDDEEFF0021 /* SpaceWeatherService.swift in Sources */,
+				A3000031AABBCCDDEEFF0031 /* AuroraOutlook.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -233,12 +337,22 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1000002AABBCCDDEEFF0002 /* NOAAForecast.swift in Sources */,
+				A3000002AABBCCDDEEFF0002 /* AppGroup.swift in Sources */,
+				A3000012AABBCCDDEEFF0012 /* LocationService.swift in Sources */,
+				A3000022AABBCCDDEEFF0022 /* SpaceWeatherService.swift in Sources */,
+				A3000032AABBCCDDEEFF0032 /* AuroraOutlook.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		A2000003AABBCCDDEEFF0003 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B93E00512F498DE800E48F71 /* AuroraTracker */;
+			targetProxy = A2000002AABBCCDDEEFF0002 /* PBXContainerItemProxy */;
+		};
 		B93E00772F498E2800E48F71 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = B93E00632F498E2700E48F71 /* AuroraWidgetExtension */;
@@ -247,6 +361,46 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		A200000BAABBCCDDEEFF000B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = manas.projects.AuroraTracker.AuroraTrackerTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AuroraTracker.app/Contents/MacOS/AuroraTracker";
+			};
+			name = Debug;
+		};
+		A200000CAABBCCDDEEFF000C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = manas.projects.AuroraTracker.AuroraTrackerTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AuroraTracker.app/Contents/MacOS/AuroraTracker";
+			};
+			name = Release;
+		};
 		B93E005B2F498DE800E48F71 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -376,21 +530,24 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_ENTITLEMENTS = AuroraTracker/AuroraTracker.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = B768V573Z6;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_LOCATION = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Aurora Tracker";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Used to estimate your chance of seeing the aurora tonight based on your location.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -400,6 +557,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = manas.projects.AuroraTracker;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
@@ -418,21 +576,24 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_ENTITLEMENTS = AuroraTracker/AuroraTracker.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = B768V573Z6;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_LOCATION = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Aurora Tracker";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Used to estimate your chance of seeing the aurora tonight based on your location.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -442,6 +603,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = manas.projects.AuroraTracker;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
@@ -460,10 +622,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = AuroraWidget/AuroraWidget.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = B768V573Z6;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
@@ -490,6 +654,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = manas.projects.AuroraTracker.AuroraWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
@@ -507,10 +672,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = AuroraWidget/AuroraWidget.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = B768V573Z6;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
@@ -537,6 +704,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = manas.projects.AuroraTracker.AuroraWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
@@ -552,6 +720,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		A2000007AABBCCDDEEFF0007 /* Build configuration list for PBXNativeTarget "AuroraTrackerTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A200000BAABBCCDDEEFF000B /* Debug */,
+				A200000CAABBCCDDEEFF000C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		B93E004D2F498DE800E48F71 /* Build configuration list for PBXProject "AuroraTracker" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

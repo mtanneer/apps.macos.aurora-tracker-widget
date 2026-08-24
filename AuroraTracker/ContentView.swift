@@ -1,5 +1,6 @@
 import SwiftUI
 import Charts
+import CoreLocation
 
 // MARK: - Theme
 
@@ -31,15 +32,6 @@ enum AppTheme: String, CaseIterable {
     }
 }
 
-// MARK: - Data Model
-
-struct KpSlot: Identifiable {
-    let id = UUID()
-    let label: String   // e.g. "12AM"
-    let kp: Double
-    let day: String     // e.g. "Mar 22"
-}
-
 // MARK: - View Model
 
 @Observable
@@ -50,9 +42,18 @@ class AuroraViewModel {
     var day2Slots: [KpSlot] = []
     var dateLabels: [String] = []
     var rangeString: String = ""
+    var lastUpdated: Date? = nil
     var isLoading = false
     var hasError = false
+    var errorMessage: String = ""
     var selectedDay = 0
+
+    var observedKp: ObservedKp? = nil
+    var activeAlerts: [SpaceWeatherAlert] = []
+    var ovationProbability: Int? = nil
+    var outlook: AuroraOutlook? = nil
+
+    let location = LocationService()
 
     var selectedSlots: [KpSlot] {
         switch selectedDay {
@@ -73,107 +74,72 @@ class AuroraViewModel {
         hasError = false
         defer { isLoading = false }
 
-        guard let url = URL(string: "https://services.swpc.noaa.gov/text/3-day-geomag-forecast.txt") else {
-            hasError = true; return
-        }
-        do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            guard let text = String(data: data, encoding: .utf8) else {
-                hasError = true; return
-            }
-            parse(text)
-        } catch {
+        async let forecastResult = NOAAForecastFetcher.fetch()
+        async let observedResult = ObservedKpFetcher.fetch()
+        async let alertsResult = AlertsFetcher.fetch()
+        async let ovationResult = OvationFetcher.fetch()
+
+        switch await forecastResult {
+        case .success(let forecast):
+            currentKp = forecast.currentKp
+            todaySlots = forecast.today
+            tomorrowSlots = forecast.tomorrow
+            day2Slots = forecast.day2
+            dateLabels = forecast.dateLabels
+            rangeString = forecast.rangeString
+            lastUpdated = forecast.fetchedAt
+            hasAutoRetried = false
+        case .failure(let error):
+            // Keep any previously loaded (stale) data on screen; only flag the error banner.
             hasError = true
-        }
-    }
-
-    private func parse(_ text: String) {
-        let lines = text.components(separatedBy: "\n")
-        guard let headerIdx = lines.firstIndex(where: { $0.contains("NOAA Kp index forecast") }) else {
-            hasError = true; return
-        }
-
-        rangeString = lines[headerIdx]
-            .replacingOccurrences(of: "NOAA Kp index forecast", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        var labels: [String] = []
-        if headerIdx + 1 < lines.count {
-            let parts = lines[headerIdx + 1]
-                .split(whereSeparator: { $0 == " " || $0 == "\t" })
-                .map(String.init)
-            var i = 0
-            while i + 1 < parts.count {
-                labels.append("\(parts[i]) \(parts[i+1])")
-                i += 2
+            switch error {
+            case .network:
+                errorMessage = "No connection to NOAA servers. Check your internet connection."
+            case .malformedData:
+                errorMessage = "NOAA data format is currently unrecognized. Try again later."
             }
         }
-        dateLabels = labels
 
-        // Slot labels converted to device local timezone
-        let utcSlotHours = [0, 3, 6, 9, 12, 15, 18, 21]
-        let slotLabels = utcSlotHours.map { AuroraViewModel.localSlotLabel(utcHour: $0) }
-
-        var today: [KpSlot] = []
-        var tomorrow: [KpSlot] = []
-        var day2: [KpSlot] = []
-
-        let tableStart = min(headerIdx + 2, lines.count - 1)
-        for (i, line) in lines[tableStart...].enumerated() {
-            guard !line.trimmingCharacters(in: .whitespaces).isEmpty else { break }
-            let parts = line
-                .split(whereSeparator: { $0 == " " || $0 == "\t" })
-                .map(String.init)
-            guard parts.count >= 4 else { continue }
-            let label = slotLabels[i % slotLabels.count]
-            let d1 = labels.count > 0 ? labels[0] : "Day 1"
-            let d2 = labels.count > 1 ? labels[1] : "Day 2"
-            let d3 = labels.count > 2 ? labels[2] : "Day 3"
-            if let kp = Double(parts[1]) { today.append(KpSlot(label: label, kp: kp, day: d1)) }
-            if let kp = Double(parts[2]) { tomorrow.append(KpSlot(label: label, kp: kp, day: d2)) }
-            if let kp = Double(parts[3]) { day2.append(KpSlot(label: label, kp: kp, day: d3)) }
+        if case .success(let observed) = await observedResult {
+            observedKp = observed
+        }
+        if case .success(let alerts) = await alertsResult {
+            activeAlerts = alerts
         }
 
-        // Current slot index is UTC-based — NOAA slots are defined in UTC
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(abbreviation: "UTC")!
-        let slotIdx = cal.component(.hour, from: Date()) / 3
-        currentKp = today.indices.contains(slotIdx) ? today[slotIdx].kp : today.last?.kp ?? 0
-        todaySlots = today
-        tomorrowSlots = tomorrow
-        day2Slots = day2
-    }
-
-    /// Converts a UTC slot hour (0, 3, 6 … 21) to a short time string in the device's local timezone.
-    static func localSlotLabel(utcHour: Int) -> String {
-        var utcCal = Calendar(identifier: .gregorian)
-        utcCal.timeZone = .gmt
-        let todayUTC = utcCal.startOfDay(for: Date())
-        guard let slotDate = utcCal.date(byAdding: .hour, value: utcHour, to: todayUTC) else {
-            return String(format: "%d:00", utcHour)
+        var probability: Int? = nil
+        if case .success(let grid) = await ovationResult, let coord = location.lastLocation {
+            probability = grid.probability(atLat: coord.latitude, lon: coord.longitude)
         }
-        let fmt = DateFormatter()
-        fmt.timeStyle = .short
-        fmt.dateStyle = .none
-        fmt.timeZone = .current
-        return fmt.string(from: slotDate)
+        ovationProbability = probability
+
+        outlook = AuroraOutlook.compute(
+            forecastKp: currentKp,
+            observedKp: observedKp?.value,
+            ovationProbability: probability,
+            activeAlert: activeAlerts.first
+        )
+
+        // A cold-launch network blip shouldn't strand the user on a stale error banner —
+        // retry once automatically rather than requiring a manual refresh tap.
+        if hasError {
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            await retryOnce()
+        }
+    }
+
+    private var hasAutoRetried = false
+
+    private func retryOnce() async {
+        guard !hasAutoRetried else { return }
+        hasAutoRetried = true
+        await fetch()
+    }
+
+    func refreshLocation() async {
+        _ = await location.fetchLocation()
     }
 }
-
-// MARK: - Aurora Helpers
-
-func auroraLevel(for kp: Double) -> (label: String, color: Color) {
-    switch kp {
-    case 8...:  return ("Extreme G4+", .red)
-    case 6..<8: return ("Strong G2-3", .orange)
-    case 5..<6: return ("Moderate G1", .yellow)
-    case 3..<5: return ("Active", .green)
-    case 1..<3: return ("Quiet", .blue)
-    default:    return ("Very Quiet", .gray)
-    }
-}
-
-func auroraColor(for kp: Double) -> Color { auroraLevel(for: kp).color }
 
 // MARK: - Content View
 
@@ -206,11 +172,18 @@ struct ContentView: View {
                         ContentUnavailableView(
                             "Could Not Load Data",
                             systemImage: "wifi.exclamationmark",
-                            description: Text("Unable to reach NOAA servers. Check your connection.")
+                            description: Text(vm.errorMessage)
                         )
                         .padding(40)
                     } else {
+                        if vm.hasError {
+                            staleDataBanner
+                        }
+                        outlookCard
                         currentKpCard
+                        if !vm.activeAlerts.isEmpty {
+                            alertsCard
+                        }
                         forecastCard
                         auroraImagesCard
                         kpScaleLegend
@@ -251,7 +224,13 @@ struct ContentView: View {
                     .help("Refresh aurora data")
                 }
             }
-            .task { await vm.fetch() }
+            .task {
+                if vm.location.status == .notDetermined {
+                    _ = await vm.location.requestAuthorizationAndWait()
+                }
+                await vm.refreshLocation()
+                await vm.fetch()
+            }
         }
         #if os(macOS)
         .frame(minWidth: 680, minHeight: 620)
@@ -296,12 +275,19 @@ struct ContentView: View {
                     .foregroundStyle(color.opacity(0.7))
                     .padding(.bottom, 6)
                 Spacer()
-                HStack(spacing: 6) {
-                    Circle().fill(color).frame(width: 9, height: 9)
-                    Text(levelLabel)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(color)
+                VStack(alignment: .trailing, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Circle().fill(color).frame(width: 9, height: 9)
+                        Text(levelLabel)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(color)
+                    }
+                    if let observed = vm.observedKp {
+                        Text("Observed: \(String(format: "%.1f", observed.value))")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
 
@@ -355,6 +341,11 @@ struct ContentView: View {
                         .fontWeight(.semibold)
                         .foregroundStyle(color)
                 }
+                if let observed = vm.observedKp {
+                    Text("Observed: \(String(format: "%.1f", observed.value)) Kp")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Spacer()
@@ -382,6 +373,87 @@ struct ContentView: View {
             Text(value).fontWeight(.semibold)
         }
         .font(.caption)
+    }
+
+    // MARK: - Tonight's Outlook Card
+
+    private var outlookCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Tonight's Outlook")
+                    .font(.headline)
+                Spacer()
+                if let outlook = vm.outlook {
+                    Text(outlook.verdict)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(outlook.color)
+                }
+            }
+
+            if let outlook = vm.outlook {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(outlook.reasoning, id: \.self) { line in
+                        HStack(alignment: .top, spacing: 6) {
+                            Text("•").foregroundStyle(.secondary)
+                            Text(line).foregroundStyle(.secondary)
+                        }
+                        .font(.caption)
+                    }
+                }
+            }
+
+            if vm.location.status != .authorized {
+                Button {
+                    Task {
+                        _ = await vm.location.requestAuthorizationAndWait()
+                        await vm.refreshLocation()
+                        await vm.fetch()
+                    }
+                } label: {
+                    Label("Enable Location for a personalized outlook", systemImage: "location")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+        .padding(16)
+        .background((vm.outlook?.color ?? .secondary).opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .strokeBorder((vm.outlook?.color ?? .secondary).opacity(0.25), lineWidth: 1)
+        )
+    }
+
+    // MARK: - Active Alerts Card
+
+    private var alertsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Active Alerts", systemImage: "exclamationmark.triangle.fill")
+                .font(.headline)
+                .foregroundStyle(.red)
+
+            ForEach(vm.activeAlerts) { alert in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(alert.summary)
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                    Text(alert.issuedAt, style: .relative)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 2)
+            }
+        }
+        .padding(16)
+        .background(Color.red.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .strokeBorder(Color.red.opacity(0.25), lineWidth: 1)
+        )
     }
 
     // MARK: - Forecast Chart Card
@@ -437,26 +509,26 @@ struct ContentView: View {
                         RuleMark(y: .value("G1 (Kp5)", 5.0))
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [5, 3]))
                             .foregroundStyle(.yellow.opacity(0.8))
-                            .annotation(position: .trailing, alignment: .leading) {
+                            .annotation(position: .top, alignment: .leading) {
                                 Text("G1").font(.system(size: 9)).foregroundStyle(.yellow)
                             }
                         RuleMark(y: .value("G2 (Kp6)", 6.0))
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [5, 3]))
                             .foregroundStyle(.orange.opacity(0.8))
-                            .annotation(position: .trailing, alignment: .leading) {
+                            .annotation(position: .top, alignment: .leading) {
                                 Text("G2").font(.system(size: 9)).foregroundStyle(.orange)
                             }
                         RuleMark(y: .value("G3 (Kp7)", 7.0))
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [5, 3]))
                             .foregroundStyle(.red.opacity(0.8))
-                            .annotation(position: .trailing, alignment: .leading) {
+                            .annotation(position: .top, alignment: .leading) {
                                 Text("G3").font(.system(size: 9)).foregroundStyle(.red)
                             }
                     }
                     .frame(height: 200)
                     .chartYScale(domain: 0...9)
                     .chartYAxis {
-                        AxisMarks(values: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) { _ in
+                        AxisMarks(position: .trailing, values: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) { _ in
                             AxisGridLine()
                             AxisValueLabel()
                         }
@@ -467,6 +539,8 @@ struct ContentView: View {
                             AxisValueLabel(orientation: .vertical)
                         }
                     }
+                    .padding(.leading, 24)
+                    .padding(.bottom, 8)
 
                     HStack(spacing: isCompact ? 10 : 20) {
                         summaryBadge(label: "Peak", value: String(format: "%.1f", vm.peakKp), color: auroraColor(for: vm.peakKp))
@@ -656,6 +730,36 @@ struct ContentView: View {
         ]
     }
 
+    // MARK: - Stale Data Banner
+
+    private var staleDataBanner: some View {
+        Button {
+            Task { await vm.fetch() }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                Text("Showing last known data. \(vm.errorMessage)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if vm.isLoading {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Text("Retry")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.orange)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(vm.isLoading)
+        .padding(10)
+        .background(Color.orange.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
     // MARK: - NOAA Attribution
 
     private var noaaAttribution: some View {
@@ -668,9 +772,15 @@ struct ContentView: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             }
-            Text("Forecasts update every 30 minutes")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+            if let lastUpdated = vm.lastUpdated {
+                Text("Updated \(lastUpdated, style: .relative) · refreshes every 30 minutes")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            } else {
+                Text("Forecasts update every 30 minutes")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 4)
