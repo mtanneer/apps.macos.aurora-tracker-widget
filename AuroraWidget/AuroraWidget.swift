@@ -64,25 +64,29 @@ struct Provider: TimelineProvider {
                         dateLabels: [], rangeString: "", hasError: true, outlook: nil)
         }
 
-        let observedKp = (try? await observedResult.get())?.value
+        let observed = try? await observedResult.get()
         let alerts = (try? await alertsResult.get()) ?? []
 
         var ovationProbability: Int? = nil
+        var isDark: Bool? = nil
         if let grid = try? await ovationResult.get(), let cached = CachedLocation.load() {
             ovationProbability = grid.probability(atLat: cached.lat, lon: cached.lon)
+            isDark = Daylight.isDark(lat: cached.lat, lon: cached.lon)
         }
 
         let outlook = AuroraOutlook.compute(
             forecastKp: forecast.currentKp,
-            observedKp: observedKp,
+            observedKp: observed?.value,
+            observedAt: observed?.timeTag,
             ovationProbability: ovationProbability,
+            isDark: isDark,
             activeAlert: alerts.first
         )
 
         return AuroraEntry(
             date: forecast.fetchedAt, currentKp: forecast.currentKp,
             currentSlotIndex: forecast.currentSlotIndex,
-            todaySlots: forecast.today, tomorrowSlots: forecast.tomorrow, day2Slots: forecast.day2,
+            todaySlots: forecast.currentDaySlots, tomorrowSlots: forecast.tomorrow, day2Slots: forecast.day2,
             dateLabels: forecast.dateLabels, rangeString: forecast.rangeString, hasError: false,
             outlook: outlook
         )
@@ -262,17 +266,14 @@ struct MiniBarChart: View {
                     }
                 }
 
-                // Time axis labels
+                // Time axis: slots run in UTC order, so label from the slots' own (local-time)
+                // labels rather than hardcoding clock times. The highlighted bar marks "now".
                 HStack {
-                    Text("12AM")
+                    Text(slots.first?.label ?? "")
                     Spacer()
-                    Text("Now")
-                        .foregroundStyle(auroraColor(for: slots.indices.contains(currentIndex)
-                            ? slots[currentIndex].kp : 0))
+                    Text(slots.indices.contains(4) ? slots[4].label : "")
                     Spacer()
-                    Text("12PM")
-                    Spacer()
-                    Text("11PM")
+                    Text(slots.last?.label ?? "")
                 }
                 .font(.system(size: 7))
                 .foregroundStyle(.secondary)
