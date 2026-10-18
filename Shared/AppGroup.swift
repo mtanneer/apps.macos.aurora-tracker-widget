@@ -1,7 +1,7 @@
 import Foundation
 
 enum AppGroup {
-    static let id = "group.manas.projects.AuroraTracker"
+    static let id = "B768V573Z6.group.manas.projects.AuroraTracker"
 
     static var defaults: UserDefaults {
         UserDefaults(suiteName: id) ?? .standard

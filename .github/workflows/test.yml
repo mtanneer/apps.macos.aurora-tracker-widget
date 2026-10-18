@@ -1,0 +1,22 @@
+name: test
+
+on:
+  pull_request:
+    paths-ignore: ['**.md', 'icon-source/**']
+  push:
+    branches: [main]
+    paths-ignore: ['**.md', 'icon-source/**']
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test
+        run: >
+          xcodebuild -project AuroraTracker.xcodeproj -scheme AuroraTracker
+          -derivedDataPath tmp/dd CODE_SIGNING_ALLOWED=NO test

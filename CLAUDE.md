@@ -18,9 +18,9 @@ For a real signed build (needed to test App Group / location / anything requirin
 
 ## App Group
 
-`group.manas.projects.AuroraTracker` shares coarse (rounded to nearest degree) location and cached outlook data between the app and widget extension. If you add/change entitlements, you must also add the capability in Xcode's Signing & Capabilities UI for both targets (not just edit the `.entitlements` file) — the provisioning profile needs to actually grant it, which only Xcode's interactive flow can generate.
+`B768V573Z6.group.manas.projects.AuroraTracker` shares coarse (rounded to nearest degree) location and cached outlook data between the app and widget extension. If you add/change entitlements, you must also add the capability in Xcode's Signing & Capabilities UI for both targets (not just edit the `.entitlements` file) — the provisioning profile needs to actually grant it, which only Xcode's interactive flow can generate.
 
-A `Couldn't read values in CFPrefsPlistSource ... kCFPreferencesAnyUser` warning in the console on launch is a known cosmetic `cfprefsd` quirk for App Group containers on unnotarized dev builds — it does not indicate a real read/write failure. Verify actual behavior with `defaults read group.manas.projects.AuroraTracker` rather than trusting the log line.
+A `Couldn't read values in CFPrefsPlistSource ... kCFPreferencesAnyUser` warning in the console on launch is a known cosmetic `cfprefsd` quirk for App Group containers on unnotarized dev builds — it does not indicate a real read/write failure. Verify actual behavior with `defaults read B768V573Z6.group.manas.projects.AuroraTracker` rather than trusting the log line.
 
 ## Location
 
