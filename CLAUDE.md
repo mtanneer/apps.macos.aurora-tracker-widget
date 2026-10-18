@@ -24,7 +24,7 @@ A `Couldn't read values in CFPrefsPlistSource ... kCFPreferencesAnyUser` warning
 
 ## Location
 
-`LocationService.requestAuthorization()` (fire-and-forget) is different from `requestAuthorizationAndWait()` (awaits the actual permission decision via a continuation resumed in `locationManagerDidChangeAuthorization`). Always use the `AndWait` variant before doing anything that depends on authorization status — the plain fire-and-forget version was the root cause of a real bug where "Enable Location" appeared to do nothing (permission dialog took time to resolve, and the location fetch that followed immediately saw stale `.notDetermined` status and bailed).
+`LocationService.requestAuthorizationAndWait()` awaits the actual permission decision (the plain fire-and-forget `requestWhenInUseAuthorization()` is no longer exposed). Concurrent callers are queued and all resumed. Always use the `AndWait` variant before doing anything that depends on authorization status — the plain fire-and-forget version was the root cause of a real bug where "Enable Location" appeared to do nothing (permission dialog took time to resolve, and the location fetch that followed immediately saw stale `.notDetermined` status and bailed).
 
 macOS App Sandbox requires **both** `INFOPLIST_KEY_NSLocationWhenInUseUsageDescription` (Info.plist string) **and** `ENABLE_RESOURCE_ACCESS_LOCATION = YES` (build setting) on the app target — the Info.plist string alone is not sufficient like it is on iOS; without the entitlement, `requestWhenInUseAuthorization()` silently no-ops with no prompt.
 
