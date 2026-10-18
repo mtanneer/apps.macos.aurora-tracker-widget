@@ -137,3 +137,20 @@ final class AuroraOutlookTests: XCTestCase {
         XCTAssertEqual(outlook.verdict, "Unlikely Tonight")
     }
 }
+
+final class AlertProductTests: XCTestCase {
+    func testWatchAndWarningProductsGetReadableSummaries() {
+        let now = DateFormatter()
+        now.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
+        now.timeZone = .gmt
+        let ts = now.string(from: Date())
+        let json = """
+        [
+          {"product_id":"A20F","issue_datetime":"\(ts)","message":"Code: WATA20\\r\\n\\r\\nWATCH: Geomagnetic Storm Category G1 Predicted\\n"},
+          {"product_id":"K04W","issue_datetime":"\(ts)","message":"Code: WARK04\\r\\n\\r\\nWARNING: Geomagnetic K-index of 4 expected\\n"}
+        ]
+        """
+        guard case .success(let alerts) = AlertsFetcher.parse(Data(json.utf8)) else { return XCTFail() }
+        XCTAssertEqual(alerts.map(\.summary), ["WATCH: Geomagnetic Storm Category G1 Predicted", "WARNING: Geomagnetic K-index of 4 expected"])
+    }
+}

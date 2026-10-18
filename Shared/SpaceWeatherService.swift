@@ -170,10 +170,11 @@ enum AlertsFetcher {
 
         let cutoff = Date().addingTimeInterval(-activeWindow)
 
-        // Only surface geomagnetic K-index alerts (product IDs like "K06A") — other NOAA
-        // product families (electron flux, radio blackout, etc.) are out of scope for this app.
+        // Only surface geomagnetic products: K-index alerts/warnings (IDs like "K06A", "K04W") and
+        // geomagnetic storm watches ("A20F") — other NOAA product families (electron flux, radio
+        // blackout, etc.) are out of scope for this app.
         let alerts: [SpaceWeatherAlert] = rows.compactMap { row in
-            guard row.product_id.hasPrefix("K"),
+            guard row.product_id.hasPrefix("K") || row.product_id.hasPrefix("A"),
                   let issuedAt = formatter.date(from: row.issue_datetime),
                   issuedAt >= cutoff else {
                 return nil
@@ -188,7 +189,7 @@ enum AlertsFetcher {
     private static func firstLine(of message: String) -> String? {
         for line in message.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("ALERT:") || trimmed.hasPrefix("WATCH:") || trimmed.hasPrefix("CONTINUED ALERT:") {
+            if ["ALERT:", "WARNING:", "WATCH:", "CONTINUED ALERT:", "EXTENDED WARNING:"].contains(where: trimmed.hasPrefix) {
                 return trimmed
             }
         }
