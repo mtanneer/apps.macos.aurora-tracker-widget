@@ -63,3 +63,61 @@ final class NOAAForecastTests: XCTestCase {
         }
     }
 }
+
+final class ForecastCurrentDayTests: XCTestCase {
+    // File issued 22:05 UTC Oct 17: first column is already Oct 18.
+    private let sample = """
+    NOAA Kp index forecast 18 Oct - 20 Oct
+                 Oct 18    Oct 19    Oct 20
+    00-03UT        1.67      1.67      4.00
+    03-06UT        1.67      2.00      5.00
+    06-09UT        1.33      1.00      3.00
+    09-12UT        1.33      1.33      4.33
+    12-15UT        1.33      1.33      3.00
+    15-18UT        1.33      3.33      2.00
+    18-21UT        1.33      4.00      3.67
+    21-00UT        1.67      4.00      2.67
+
+    """
+
+    private func utc(_ s: String) -> Date {
+        let f = ISO8601DateFormatter()
+        return f.date(from: s)!
+    }
+
+    private func parse(at iso: String, _ text: String? = nil) -> NOAAForecast {
+        guard case .success(let f) = NOAAForecastFetcher.parse(Data((text ?? sample).utf8), now: utc(iso)) else {
+            XCTFail("parse failed"); fatalError()
+        }
+        return f
+    }
+
+    func testPicksColumnMatchingUTCDate() {
+        let f = parse(at: "2026-10-19T04:00:00Z")
+        XCTAssertEqual(f.currentDayIndex, 1)
+        XCTAssertEqual(f.currentSlotIndex, 1)
+        XCTAssertEqual(f.currentKp, 2.00)
+    }
+
+    func testBeforeForecastStartUsesFirstSlotNotTomorrowsHour() {
+        // 23:00 UTC Oct 17 — file already covers Oct 18; must not index Oct 18 by hour 23.
+        let f = parse(at: "2026-10-17T23:00:00Z")
+        XCTAssertEqual(f.currentDayIndex, 0)
+        XCTAssertEqual(f.currentSlotIndex, 0)
+    }
+
+    func testStaleFileUsesLastSlot() {
+        let f = parse(at: "2026-10-25T10:00:00Z")
+        XCTAssertEqual(f.currentDayIndex, 2)
+        XCTAssertEqual(f.currentSlotIndex, 7)
+        XCTAssertEqual(f.currentKp, 2.67)
+    }
+
+    func testIncompleteColumnIsDroppedNotShifted() {
+        let broken = sample.replacingOccurrences(of: "03-06UT        1.67      2.00", with: "03-06UT        1.67      x.xx")
+        let f = parse(at: "2026-10-18T10:00:00Z", broken)
+        XCTAssertEqual(f.today.count, 8)
+        XCTAssertTrue(f.tomorrow.isEmpty)
+        XCTAssertEqual(f.day2.count, 8)
+    }
+}

@@ -34,8 +34,14 @@ struct NOAAForecast {
     let dateLabels: [String]
     let rangeString: String
     let currentKp: Double
+    /// Column (0...2) matching the current UTC date, and 3-hour slot within it.
+    let currentDayIndex: Int
     let currentSlotIndex: Int
     let fetchedAt: Date
+
+    var currentDaySlots: [KpSlot] {
+        [today, tomorrow, day2][currentDayIndex]
+    }
 }
 
 enum NOAAFetchError: Error, Equatable {
@@ -83,7 +89,7 @@ enum NOAAForecastFetcher {
         }
     }
 
-    static func parse(_ data: Data) -> Result<NOAAForecast, NOAAFetchError> {
+    static func parse(_ data: Data, now: Date = Date()) -> Result<NOAAForecast, NOAAFetchError> {
         guard let text = String(data: data, encoding: .utf8) else {
             logger.error("NOAA response was not valid UTF-8")
             return .failure(.malformedData)
@@ -116,9 +122,8 @@ enum NOAAForecastFetcher {
         let d2 = dateLabels.count > 1 ? dateLabels[1] : "Day 2"
         let d3 = dateLabels.count > 2 ? dateLabels[2] : "Day 3"
 
-        var today: [KpSlot] = []
-        var tomorrow: [KpSlot] = []
-        var day2: [KpSlot] = []
+        var columns: [[KpSlot]] = [[], [], []]
+        let labels = [d1, d2, d3]
 
         let tableStart = min(headerIdx + 2, lines.count - 1)
         for (i, line) in lines[tableStart...].enumerated() {
@@ -126,25 +131,53 @@ enum NOAAForecastFetcher {
             let parts = line.split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
             guard parts.count >= 4 else { continue }
             let label = slotLabels[i % slotLabels.count]
-            if let kp = validKp(parts[1]) { today.append(KpSlot(label: label, kp: kp, day: d1)) }
-            if let kp = validKp(parts[2]) { tomorrow.append(KpSlot(label: label, kp: kp, day: d2)) }
-            if let kp = validKp(parts[3]) { day2.append(KpSlot(label: label, kp: kp, day: d3)) }
+            for c in 0..<3 {
+                if let kp = validKp(parts[c + 1]) { columns[c].append(KpSlot(label: label, kp: kp, day: labels[c])) }
+            }
         }
 
-        guard !today.isEmpty else {
-            logger.error("Parsed zero valid Kp slots from NOAA response")
+        // A column with a missing/invalid cell would shift every later slot against its time
+        // label, so drop incomplete columns rather than serve misaligned data.
+        for c in 0..<3 where columns[c].count != utcSlotHours.count { columns[c] = [] }
+
+        // NOAA's first column is whichever UTC day the file was issued for, so it is not always
+        // "today": just after 00:00 UTC (before the new file lands) it is yesterday, and late in
+        // the previous UTC day it is already tomorrow. Pick the column by date, not position.
+        var utcCal = Calendar(identifier: .gregorian)
+        utcCal.timeZone = .gmt
+        let hour = utcCal.component(.hour, from: now)
+        func label(_ date: Date) -> String {
+            let fmt = DateFormatter()
+            fmt.locale = Locale(identifier: "en_US_POSIX")
+            fmt.timeZone = .gmt
+            fmt.dateFormat = "MMM d"
+            return fmt.string(from: date)
+        }
+        let tomorrowDate = utcCal.date(byAdding: .day, value: 1, to: now) ?? now
+        let dayIdx: Int, slotIdx: Int
+        if let m = dateLabels.firstIndex(of: label(now)), m < 3 {
+            (dayIdx, slotIdx) = (m, hour / 3)
+        } else if dateLabels.first == label(tomorrowDate) {
+            // Forecast already starts tomorrow: nearest known value is its first slot.
+            (dayIdx, slotIdx) = (0, 0)
+        } else if columns[0].isEmpty {
+            (dayIdx, slotIdx) = (0, 0)
+        } else {
+            // File is older than today (feed stalled): last known slot.
+            let last = columns.lastIndex(where: { !$0.isEmpty }) ?? 0
+            (dayIdx, slotIdx) = (last, utcSlotHours.count - 1)
+        }
+
+        guard columns[dayIdx].indices.contains(slotIdx) else {
+            logger.error("Parsed no valid Kp slots for the current day from NOAA response")
             return .failure(.malformedData)
         }
 
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(abbreviation: "UTC")!
-        let slotIdx = cal.component(.hour, from: Date()) / 3
-        let currentKp = today.indices.contains(slotIdx) ? today[slotIdx].kp : today.last?.kp ?? 0
-
         return .success(NOAAForecast(
-            today: today, tomorrow: tomorrow, day2: day2,
+            today: columns[0], tomorrow: columns[1], day2: columns[2],
             dateLabels: dateLabels, rangeString: rangeString,
-            currentKp: currentKp, currentSlotIndex: slotIdx, fetchedAt: Date()
+            currentKp: columns[dayIdx][slotIdx].kp, currentDayIndex: dayIdx,
+            currentSlotIndex: slotIdx, fetchedAt: now
         ))
     }
 
