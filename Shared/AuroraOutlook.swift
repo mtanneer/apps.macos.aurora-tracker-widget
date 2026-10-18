@@ -1,28 +1,72 @@
 import SwiftUI
 
+/// Rough solar position, accurate to well under a degree — plenty for "is it dark yet".
+enum Daylight {
+    /// Sun this far below the horizon (nautical twilight) counts as dark enough for aurora.
+    static let darkElevation = -12.0
+
+    static func solarElevation(lat: Double, lon: Double, at date: Date) -> Double {
+        let rad = Double.pi / 180
+        let n = date.timeIntervalSince1970 / 86400 + 2440587.5 - 2451545.0
+        let meanLon = (280.460 + 0.9856474 * n).truncatingRemainder(dividingBy: 360)
+        let g = ((357.528 + 0.9856003 * n).truncatingRemainder(dividingBy: 360)) * rad
+        let eclLon = (meanLon + 1.915 * sin(g) + 0.020 * sin(2 * g)) * rad
+        let obliquity = (23.439 - 0.0000004 * n) * rad
+        let declination = asin(sin(obliquity) * sin(eclLon))
+        let rightAscension = atan2(cos(obliquity) * sin(eclLon), cos(eclLon))
+        let gmst = (280.46061837 + 360.98564736629 * n).truncatingRemainder(dividingBy: 360)
+        let hourAngle = (gmst + lon) * rad - rightAscension
+        let sinEl = sin(lat * rad) * sin(declination) + cos(lat * rad) * cos(declination) * cos(hourAngle)
+        return asin(sinEl) / rad
+    }
+
+    static func isDark(lat: Double, lon: Double, at date: Date = Date()) -> Bool {
+        solarElevation(lat: lat, lon: lon, at: date) < darkElevation
+    }
+}
+
 struct AuroraOutlook {
     let verdict: String
     let color: Color
     let reasoning: [String]
 
+    /// Observed Kp older than this is ignored — the feed can stall, and a stale quiet reading
+    /// must not mask a storm.
+    static let observedMaxAge: TimeInterval = 6 * 3600
+    /// An alert older than this no longer drives the "Active Alert" verdict.
+    static let alertMaxAge: TimeInterval = 6 * 3600
+    /// Below this Ovation probability the aurora is effectively not visible at the location.
+    static let unlikelyBelow = 5
+    static let goodChanceFrom = 40
+
     /// Combines forecast Kp, observed Kp, an active alert, and (if the user's location and the
     /// Ovation grid are both available) a location-specific aurora probability into one verdict.
     /// Degrades gracefully: with only a forecast Kp, this reduces to the original Kp-only logic.
+    /// `isDark` is only meaningful when a location is known; pass nil otherwise.
     static func compute(
         forecastKp: Double,
         observedKp: Double? = nil,
+        observedAt: Date? = nil,
         ovationProbability: Int? = nil,
-        activeAlert: SpaceWeatherAlert? = nil
+        isDark: Bool? = nil,
+        activeAlert: SpaceWeatherAlert? = nil,
+        now: Date = Date()
     ) -> AuroraOutlook {
         var reasoning: [String] = []
 
-        if let activeAlert {
-            reasoning.append(activeAlert.summary)
+        let alert = activeAlert.flatMap { now.timeIntervalSince($0.issuedAt) <= alertMaxAge ? $0 : nil }
+        if let alert {
+            reasoning.append(alert.summary)
         }
 
-        let effectiveKp = observedKp ?? forecastKp
-        if let observedKp {
-            reasoning.append("Observed Kp \(String(format: "%.1f", observedKp)) vs. forecast \(String(format: "%.1f", forecastKp))")
+        let observedIsFresh = observedAt.map { now.timeIntervalSince($0) <= observedMaxAge } ?? true
+        let freshObserved = observedIsFresh ? observedKp : nil
+
+        // Whichever is higher: a forecast storm shouldn't be hidden by a quiet current reading,
+        // nor an observed storm by a quiet forecast.
+        let effectiveKp = max(forecastKp, freshObserved ?? 0)
+        if let freshObserved {
+            reasoning.append("Observed Kp \(String(format: "%.1f", freshObserved)) vs. forecast \(String(format: "%.1f", forecastKp))")
         } else {
             reasoning.append("Forecast Kp \(String(format: "%.1f", forecastKp))")
         }
@@ -30,29 +74,38 @@ struct AuroraOutlook {
         if let ovationProbability {
             reasoning.append("\(ovationProbability)% aurora probability at your location")
         }
+        if isDark == false {
+            reasoning.append("Sun is up at your location — aurora is only visible after dark")
+        }
 
         let (verdict, color) = Self.verdict(
             effectiveKp: effectiveKp,
             ovationProbability: ovationProbability,
-            hasActiveAlert: activeAlert != nil
+            isDark: isDark ?? true,
+            hasActiveAlert: alert != nil
         )
 
         return AuroraOutlook(verdict: verdict, color: color, reasoning: reasoning)
     }
 
-    private static func verdict(effectiveKp: Double, ovationProbability: Int?, hasActiveAlert: Bool) -> (String, Color) {
-        if hasActiveAlert && effectiveKp >= 5 {
+    private static func verdict(effectiveKp: Double, ovationProbability: Int?, isDark: Bool, hasActiveAlert: Bool) -> (String, Color) {
+        let unlikelyHere = ovationProbability.map { $0 < unlikelyBelow } ?? false
+
+        if hasActiveAlert && effectiveKp >= 5 && !unlikelyHere {
             return ("Active Alert — Check Now", .red)
         }
-        if let ovationProbability, ovationProbability >= 40 {
+        if !isDark {
+            return ("Not Dark Yet", .gray)
+        }
+        if let ovationProbability, ovationProbability >= goodChanceFrom {
             return ("Good Chance Tonight", .green)
         }
-        if let ovationProbability, ovationProbability < 5, effectiveKp < 4 {
+        // Location beats global Kp: a strong storm is still no aurora for someone at 25°N.
+        if unlikelyHere {
             return ("Unlikely Tonight", .gray)
         }
 
         // Fall back to Kp-only assessment when Ovation data isn't available for this location.
-        let (label, color) = auroraLevel(for: effectiveKp)
-        return (label, color)
+        return auroraLevel(for: effectiveKp)
     }
 }

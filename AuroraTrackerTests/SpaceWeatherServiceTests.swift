@@ -154,3 +154,52 @@ final class AlertProductTests: XCTestCase {
         XCTAssertEqual(alerts.map(\.summary), ["WATCH: Geomagnetic Storm Category G1 Predicted", "WARNING: Geomagnetic K-index of 4 expected"])
     }
 }
+
+final class AuroraOutlookLogicTests: XCTestCase {
+    private func alert(age: TimeInterval = 0) -> SpaceWeatherAlert {
+        SpaceWeatherAlert(id: "K06A", issuedAt: Date().addingTimeInterval(-age), summary: "ALERT: Geomagnetic K-index of 6")
+    }
+
+    func testStormDoesNotOverrideZeroProbabilityAtLocation() {
+        let o = AuroraOutlook.compute(forecastKp: 6.5, ovationProbability: 0, isDark: true, activeAlert: alert())
+        XCTAssertEqual(o.verdict, "Unlikely Tonight")
+    }
+
+    func testHighKpDoesNotMaskLowProbabilityWithoutAlert() {
+        let o = AuroraOutlook.compute(forecastKp: 6.0, ovationProbability: 2, isDark: true)
+        XCTAssertEqual(o.verdict, "Unlikely Tonight")
+    }
+
+    func testDaylightGatesLocalVerdict() {
+        let o = AuroraOutlook.compute(forecastKp: 3, ovationProbability: 80, isDark: false)
+        XCTAssertEqual(o.verdict, "Not Dark Yet")
+    }
+
+    func testQuietObservedDoesNotMaskForecastStorm() {
+        let o = AuroraOutlook.compute(forecastKp: 6, observedKp: 2, activeAlert: alert())
+        XCTAssertEqual(o.verdict, "Active Alert — Check Now")
+    }
+
+    func testStaleObservedIsIgnored() {
+        let old = Date().addingTimeInterval(-10 * 3600)
+        let o = AuroraOutlook.compute(forecastKp: 2, observedKp: 7, observedAt: old)
+        XCTAssertEqual(o.verdict, "Quiet")
+    }
+
+    func testOldAlertNoLongerActive() {
+        let o = AuroraOutlook.compute(forecastKp: 6, activeAlert: alert(age: 12 * 3600))
+        XCTAssertEqual(o.verdict, "Strong G2-3")
+    }
+}
+
+final class DaylightTests: XCTestCase {
+    func testSolarElevationKnownPoints() {
+        // Equinox noon at the equator on the prime meridian: sun ~overhead.
+        let noon = ISO8601DateFormatter().date(from: "2026-03-20T12:00:00Z")!
+        XCTAssertGreaterThan(Daylight.solarElevation(lat: 0, lon: 0, at: noon), 80)
+        // Same instant on the opposite meridian: midnight.
+        XCTAssertLessThan(Daylight.solarElevation(lat: 0, lon: 180, at: noon), -80)
+        XCTAssertTrue(Daylight.isDark(lat: 0, lon: 180, at: noon))
+        XCTAssertFalse(Daylight.isDark(lat: 0, lon: 0, at: noon))
+    }
+}
