@@ -2,6 +2,35 @@
 
 A native macOS app and widget that displays live NOAA geomagnetic Kp index data, real-time aurora probability, and a combined "tonight's outlook" for your location.
 
+## Install
+
+Requires macOS 26 (Tahoe) or later. The cask installs a notarized universal build (Apple silicon + Intel) to `/Applications`.
+
+```sh
+brew install --cask mtanneer/tools/aurora-tracker
+```
+
+`--cask` is required because the name is a cask (an app), not a formula. The fully qualified name taps `mtanneer/tools` automatically; to tap it yourself first:
+
+```sh
+brew tap mtanneer/tools
+brew install --cask aurora-tracker
+```
+
+Then launch **Aurora Tracker** once so macOS registers the widget, and add it from the Desktop (right-click → **Edit Widgets**).
+
+| Task | Command |
+|---|---|
+| Update | `brew update && brew upgrade --cask aurora-tracker` |
+| Reinstall | `brew reinstall --cask aurora-tracker` |
+| Uninstall | `brew uninstall --cask aurora-tracker` |
+| Uninstall and remove app data | `brew uninstall --cask --zap aurora-tracker` |
+| Show version / info | `brew info --cask aurora-tracker` |
+
+`--zap` also deletes the app's sandbox containers and shared widget data. macOS may block this unless your terminal has Full Disk Access; if folders remain, delete them manually from `~/Library/Containers/manas.projects.AuroraTracker*` and `~/Library/Group Containers/B768V573Z6.group.manas.projects.AuroraTracker`.
+
+No `--no-quarantine` flag is needed — releases are signed with Developer ID and notarized, so Gatekeeper opens them normally.
+
 ## Features
 
 ### Widget
@@ -49,14 +78,6 @@ All fetches use a 15s timeout with one automatic retry on transient failure.
 | 5–6 | G1 | Minor storm |
 | 6–8 | G2–G3 | Strong storm |
 | 8–9 | G4+ | Extreme storm |
-
-## Install
-
-```sh
-brew install --cask mtanneer/tools/aurora-tracker
-```
-
-Launch the app once so macOS registers the widget, then see [Adding the Widget](#adding-the-widget). Releases are notarized, universal (Apple silicon + Intel) builds.
 
 ## Requirements
 
