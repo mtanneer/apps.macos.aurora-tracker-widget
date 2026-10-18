@@ -1,6 +1,10 @@
 import SwiftUI
 import Charts
 import CoreLocation
+import WidgetKit
+#if os(macOS)
+import AppKit
+#endif
 
 // MARK: - Theme
 
@@ -52,8 +56,16 @@ class AuroraViewModel {
     var activeAlerts: [SpaceWeatherAlert] = []
     var ovationProbability: Int? = nil
     var outlook: AuroraOutlook? = nil
+    var currentDayIndex = 0
+    private var ovationGrid: OvationGrid? = nil
+    private var hasPickedInitialDay = false
 
     let location = LocationService()
+
+    /// Slots for the current UTC day — column 0 isn't always "today" (see NOAAForecast.currentDayIndex).
+    var currentDaySlots: [KpSlot] {
+        [todaySlots, tomorrowSlots, day2Slots][currentDayIndex]
+    }
 
     var selectedSlots: [KpSlot] {
         switch selectedDay {
@@ -88,6 +100,11 @@ class AuroraViewModel {
             dateLabels = forecast.dateLabels
             rangeString = forecast.rangeString
             lastUpdated = forecast.fetchedAt
+            currentDayIndex = forecast.currentDayIndex
+            if !hasPickedInitialDay {
+                selectedDay = forecast.currentDayIndex
+                hasPickedInitialDay = true
+            }
             hasAutoRetried = false
         case .failure(let error):
             // Keep any previously loaded (stale) data on screen; only flag the error banner.
@@ -107,18 +124,10 @@ class AuroraViewModel {
             activeAlerts = alerts
         }
 
-        var probability: Int? = nil
-        if case .success(let grid) = await ovationResult, let coord = location.lastLocation {
-            probability = grid.probability(atLat: coord.latitude, lon: coord.longitude)
+        if case .success(let grid) = await ovationResult {
+            ovationGrid = grid
         }
-        ovationProbability = probability
-
-        outlook = AuroraOutlook.compute(
-            forecastKp: currentKp,
-            observedKp: observedKp?.value,
-            ovationProbability: probability,
-            activeAlert: activeAlerts.first
-        )
+        updateOutlook()
 
         // A cold-launch network blip shouldn't strand the user on a stale error banner —
         // retry once automatically rather than requiring a manual refresh tap.
@@ -136,8 +145,35 @@ class AuroraViewModel {
         await fetch()
     }
 
+    /// Recomputes the outlook from whatever data and location are currently known.
+    func updateOutlook() {
+        var probability: Int? = nil
+        var isDark: Bool? = nil
+        if let grid = ovationGrid, let coord = location.lastLocation {
+            probability = grid.probability(atLat: coord.latitude, lon: coord.longitude)
+            isDark = Daylight.isDark(lat: coord.latitude, lon: coord.longitude)
+        }
+        ovationProbability = probability
+
+        outlook = AuroraOutlook.compute(
+            forecastKp: currentKp,
+            observedKp: observedKp?.value,
+            observedAt: observedKp?.timeTag,
+            ovationProbability: probability,
+            isDark: isDark,
+            activeAlert: activeAlerts.first
+        )
+    }
+
+    /// Asks for permission if still undecided, gets a fix, and refines the outlook with it.
+    /// Never blocks the main data fetch — location only sharpens the verdict.
     func refreshLocation() async {
+        if location.status == .notDetermined {
+            _ = await location.requestAuthorizationAndWait()
+        }
         _ = await location.fetchLocation()
+        updateOutlook()
+        WidgetCenter.shared.reloadAllTimelines()
     }
 }
 
@@ -225,11 +261,9 @@ struct ContentView: View {
                 }
             }
             .task {
-                if vm.location.status == .notDetermined {
-                    _ = await vm.location.requestAuthorizationAndWait()
-                }
+                async let fetched: Void = vm.fetch()
                 await vm.refreshLocation()
-                await vm.fetch()
+                await fetched
             }
         }
         #if os(macOS)
@@ -294,9 +328,9 @@ struct ContentView: View {
             Divider().opacity(0.3)
 
             HStack(spacing: 0) {
-                compactStat(title: "Today's Peak", value: String(format: "%.1f Kp", vm.todaySlots.map(\.kp).max() ?? 0), color: color)
+                compactStat(title: "Today's Peak", value: String(format: "%.1f Kp", vm.currentDaySlots.map(\.kp).max() ?? 0), color: color)
                 Spacer()
-                compactStat(title: "Today's Avg", value: String(format: "%.1f Kp", vm.todaySlots.isEmpty ? 0 : vm.todaySlots.reduce(0) { $0 + $1.kp } / Double(vm.todaySlots.count)), color: color)
+                compactStat(title: "Today's Avg", value: String(format: "%.1f Kp", vm.currentDaySlots.isEmpty ? 0 : vm.currentDaySlots.reduce(0) { $0 + $1.kp } / Double(vm.currentDaySlots.count)), color: color)
                 Spacer()
                 if let d1 = vm.dateLabels.first {
                     compactStat(title: "Start Date", value: d1, color: .secondary)
@@ -357,8 +391,8 @@ struct ContentView: View {
                         .foregroundStyle(.secondary)
                 }
                 VStack(alignment: .trailing, spacing: 4) {
-                    statRow(title: "Today's Peak", value: String(format: "%.1f Kp", vm.todaySlots.map(\.kp).max() ?? 0))
-                    statRow(title: "Today's Avg", value: String(format: "%.1f Kp", vm.todaySlots.isEmpty ? 0 : vm.todaySlots.reduce(0) { $0 + $1.kp } / Double(vm.todaySlots.count)))
+                    statRow(title: "Today's Peak", value: String(format: "%.1f Kp", vm.currentDaySlots.map(\.kp).max() ?? 0))
+                    statRow(title: "Today's Avg", value: String(format: "%.1f Kp", vm.currentDaySlots.isEmpty ? 0 : vm.currentDaySlots.reduce(0) { $0 + $1.kp } / Double(vm.currentDaySlots.count)))
                     if let d1 = vm.dateLabels.first {
                         statRow(title: "Forecast Start", value: d1)
                     }
@@ -405,13 +439,19 @@ struct ContentView: View {
 
             if vm.location.status != .authorized {
                 Button {
-                    Task {
-                        _ = await vm.location.requestAuthorizationAndWait()
-                        await vm.refreshLocation()
-                        await vm.fetch()
+                    if vm.location.status == .denied {
+                        // macOS won't re-prompt after a denial; the user has to flip it in Settings.
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    } else {
+                        Task { await vm.refreshLocation() }
                     }
                 } label: {
-                    Label("Enable Location for a personalized outlook", systemImage: "location")
+                    Label(vm.location.status == .denied
+                          ? "Location is off — open System Settings"
+                          : "Enable Location for a personalized outlook",
+                          systemImage: "location")
                         .font(.caption)
                 }
                 .buttonStyle(.bordered)
