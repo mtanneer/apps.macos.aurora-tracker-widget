@@ -50,12 +50,19 @@ All fetches use a 15s timeout with one automatic retry on transient failure.
 | 6–8 | G2–G3 | Strong storm |
 | 8–9 | G4+ | Extreme storm |
 
+## Install
+
+```sh
+brew install --cask mtanneer/tools/aurora-tracker
+```
+
+Launch the app once so macOS registers the widget, then see [Adding the Widget](#adding-the-widget). Releases are notarized, universal (Apple silicon + Intel) builds.
+
 ## Requirements
 
 - macOS 26.0+
-- Xcode 26+
 - Internet connection (NOAA data)
-- A signed-in Apple ID in Xcode (Settings → Accounts) — required for the App Group capability used to share location/outlook state with the widget
+- To build from source: Xcode 26 and a signed-in Apple ID (Developer ID signing for releases is handled by `scripts/release.sh`)
 
 ## Adding the Widget
 
@@ -65,11 +72,18 @@ All fetches use a 15s timeout with one automatic retry on transient failure.
 
 The widget also works in Notification Center (right-hand panel).
 
-## Building
+## Building from source
 
 Open `AuroraTracker.xcodeproj` in Xcode and run the **AuroraTracker** scheme. No additional dependencies or package managers required.
 
 On first build, confirm both the `AuroraTracker` and `AuroraWidgetExtension` targets' **Signing & Capabilities** tab shows your Team selected and the `B768V573Z6.group.manas.projects.AuroraTracker` App Group checked — Xcode needs to register the device and generate provisioning profiles for this once, which requires an interactive build from the Xcode GUI (not just `xcodebuild` from the CLI).
+
+## Releasing
+
+1. Bump `MARKETING_VERSION` (all targets) and merge to `main`.
+2. `scripts/release.sh` — Developer ID signs, notarizes, staples and zips; prints the sha256. Needs the `notary` keychain profile once: `xcrun notarytool store-credentials notary --apple-id <apple-id> --team-id B768V573Z6`. `SKIP_NOTARIZE=1` signs only.
+3. `git tag vX.Y.Z && git push --tags`, then `gh release create vX.Y.Z tmp/release/AuroraTracker-X.Y.Z.zip`.
+4. Update `version` and `sha256` in `Casks/aurora-tracker.rb` in `mtanneer/homebrew-tools` and push.
 
 ## Testing
 
