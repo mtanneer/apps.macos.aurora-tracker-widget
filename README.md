@@ -69,7 +69,7 @@ The widget also works in Notification Center (right-hand panel).
 
 Open `AuroraTracker.xcodeproj` in Xcode and run the **AuroraTracker** scheme. No additional dependencies or package managers required.
 
-On first build, confirm both the `AuroraTracker` and `AuroraWidgetExtension` targets' **Signing & Capabilities** tab shows your Team selected and the `group.manas.projects.AuroraTracker` App Group checked — Xcode needs to register the device and generate provisioning profiles for this once, which requires an interactive build from the Xcode GUI (not just `xcodebuild` from the CLI).
+On first build, confirm both the `AuroraTracker` and `AuroraWidgetExtension` targets' **Signing & Capabilities** tab shows your Team selected and the `B768V573Z6.group.manas.projects.AuroraTracker` App Group checked — Xcode needs to register the device and generate provisioning profiles for this once, which requires an interactive build from the Xcode GUI (not just `xcodebuild` from the CLI).
 
 ## Testing
 
