@@ -29,6 +29,10 @@ struct AuroraOutlook {
     let verdict: String
     let color: Color
     let reasoning: [String]
+    /// Aurora probability (%) at the user's location right now; nil without a location.
+    let chance: Int?
+    /// Cloud cover (%) at the user's location right now; nil without a location or when unavailable.
+    let cloudCover: Int?
 
     /// Observed Kp older than this is ignored — the feed can stall, and a stale quiet reading
     /// must not mask a storm.
@@ -38,6 +42,8 @@ struct AuroraOutlook {
     /// Below this Ovation probability the aurora is effectively not visible at the location.
     static let unlikelyBelow = 5
     static let goodChanceFrom = 40
+    /// At or above this cloud cover the sky is effectively blocked.
+    static let cloudyFrom = 85
 
     /// Combines forecast Kp, observed Kp, an active alert, and (if the user's location and the
     /// Ovation grid are both available) a location-specific aurora probability into one verdict.
@@ -49,6 +55,7 @@ struct AuroraOutlook {
         observedAt: Date? = nil,
         ovationProbability: Int? = nil,
         isDark: Bool? = nil,
+        cloudCover: Int? = nil,
         activeAlert: SpaceWeatherAlert? = nil,
         now: Date = Date()
     ) -> AuroraOutlook {
@@ -65,15 +72,16 @@ struct AuroraOutlook {
         // Whichever is higher: a forecast storm shouldn't be hidden by a quiet current reading,
         // nor an observed storm by a quiet forecast.
         let effectiveKp = max(forecastKp, freshObserved ?? 0)
+        let forecastWord = KpBand.band(for: forecastKp).headline.lowercased()
         if let freshObserved {
-            reasoning.append("Observed Kp \(String(format: "%.1f", freshObserved)) vs. forecast \(String(format: "%.1f", forecastKp))")
+            let observedWord = KpBand.band(for: freshObserved).headline.lowercased()
+            reasoning.append(observedWord == forecastWord
+                ? "Sky activity is \(observedWord), as forecast"
+                : "Sky activity is \(observedWord) right now; forecast says \(forecastWord)")
         } else {
-            reasoning.append("Forecast Kp \(String(format: "%.1f", forecastKp))")
+            reasoning.append("Forecast sky activity: \(forecastWord)")
         }
 
-        if let ovationProbability {
-            reasoning.append("\(ovationProbability)% aurora probability at your location")
-        }
         if isDark == false {
             reasoning.append("Sun is up at your location — aurora is only visible after dark")
         }
@@ -82,13 +90,15 @@ struct AuroraOutlook {
             effectiveKp: effectiveKp,
             ovationProbability: ovationProbability,
             isDark: isDark ?? true,
+            cloudCover: cloudCover,
             hasActiveAlert: alert != nil
         )
 
-        return AuroraOutlook(verdict: verdict, color: color, reasoning: reasoning)
+        return AuroraOutlook(verdict: verdict, color: color, reasoning: reasoning,
+                             chance: ovationProbability, cloudCover: cloudCover)
     }
 
-    private static func verdict(effectiveKp: Double, ovationProbability: Int?, isDark: Bool, hasActiveAlert: Bool) -> (String, Color) {
+    private static func verdict(effectiveKp: Double, ovationProbability: Int?, isDark: Bool, cloudCover: Int?, hasActiveAlert: Bool) -> (String, Color) {
         let unlikelyHere = ovationProbability.map { $0 < unlikelyBelow } ?? false
 
         if hasActiveAlert && effectiveKp >= 5 && !unlikelyHere {
@@ -97,12 +107,15 @@ struct AuroraOutlook {
         if !isDark {
             return ("Not Dark Yet", .gray)
         }
+        if let cloudCover, cloudCover >= cloudyFrom, !unlikelyHere {
+            return ("Likely Hidden by Clouds", .gray)
+        }
         if let ovationProbability, ovationProbability >= goodChanceFrom {
-            return ("Good Chance Tonight", .green)
+            return ("Good Chance Now", .green)
         }
         // Location beats global Kp: a strong storm is still no aurora for someone at 25°N.
         if unlikelyHere {
-            return ("Unlikely Tonight", .gray)
+            return ("Unlikely Now", .gray)
         }
 
         // Fall back to Kp-only assessment when Ovation data isn't available for this location.

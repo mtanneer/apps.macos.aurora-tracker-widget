@@ -129,12 +129,43 @@ final class AuroraOutlookTests: XCTestCase {
 
     func testHighOvationProbabilityProducesGoodChance() {
         let outlook = AuroraOutlook.compute(forecastKp: 2.0, ovationProbability: 55)
-        XCTAssertEqual(outlook.verdict, "Good Chance Tonight")
+        XCTAssertEqual(outlook.verdict, "Good Chance Now")
     }
 
     func testLowSignalsProduceUnlikely() {
         let outlook = AuroraOutlook.compute(forecastKp: 1.0, ovationProbability: 2)
-        XCTAssertEqual(outlook.verdict, "Unlikely Tonight")
+        XCTAssertEqual(outlook.verdict, "Unlikely Now")
+    }
+}
+
+final class CloudCoverTests: XCTestCase {
+    func testParsesCurrentCloudCover() {
+        let json = #"{"current":{"time":"2026-10-19T01:00","cloud_cover":72}}"#
+        guard case .success(let pct) = CloudCoverFetcher.parse(Data(json.utf8)) else { return XCTFail() }
+        XCTAssertEqual(pct, 72)
+    }
+
+    func testRejectsMalformedCloudCover() {
+        XCTAssertThrowsError(try CloudCoverFetcher.parse(Data("{}".utf8)).get())
+    }
+
+    func testHeavyCloudOverridesGoodChance() {
+        let o = AuroraOutlook.compute(forecastKp: 4, ovationProbability: 60, isDark: true, cloudCover: 95)
+        XCTAssertEqual(o.verdict, "Likely Hidden by Clouds")
+        XCTAssertEqual(o.chance, 60)
+    }
+
+    func testClearSkyKeepsGoodChance() {
+        let o = AuroraOutlook.compute(forecastKp: 4, ovationProbability: 60, isDark: true, cloudCover: 10)
+        XCTAssertEqual(o.verdict, "Good Chance Now")
+    }
+}
+
+final class OutlookReasoningTests: XCTestCase {
+    func testObservedVsForecastReadsInPlainWords() {
+        let o = AuroraOutlook.compute(forecastKp: 4, observedKp: 2)
+        XCTAssertTrue(o.reasoning.contains("Sky activity is quiet right now; forecast says active"))
+        XCTAssertFalse(o.reasoning.joined().contains("Kp"))
     }
 }
 
@@ -162,12 +193,12 @@ final class AuroraOutlookLogicTests: XCTestCase {
 
     func testStormDoesNotOverrideZeroProbabilityAtLocation() {
         let o = AuroraOutlook.compute(forecastKp: 6.5, ovationProbability: 0, isDark: true, activeAlert: alert())
-        XCTAssertEqual(o.verdict, "Unlikely Tonight")
+        XCTAssertEqual(o.verdict, "Unlikely Now")
     }
 
     func testHighKpDoesNotMaskLowProbabilityWithoutAlert() {
         let o = AuroraOutlook.compute(forecastKp: 6.0, ovationProbability: 2, isDark: true)
-        XCTAssertEqual(o.verdict, "Unlikely Tonight")
+        XCTAssertEqual(o.verdict, "Unlikely Now")
     }
 
     func testDaylightGatesLocalVerdict() {

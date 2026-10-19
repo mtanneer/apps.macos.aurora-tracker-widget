@@ -217,3 +217,62 @@ func auroraLevel(for kp: Double) -> (label: String, color: Color) {
 }
 
 func auroraColor(for kp: Double) -> Color { auroraLevel(for: kp).color }
+
+// MARK: - Plain-language Kp guide (shared by app and widget)
+
+/// One row per activity band. `from` is the lowest Kp in the band; colors match `auroraLevel(for:)`.
+struct KpBand {
+    let from: Double
+    let label: String      // legend name
+    let range: String
+    let color: Color
+    let headline: String   // human name for the activity level
+    let meaning: String    // what it means for someone looking up
+
+    static let all: [KpBand] = [
+        KpBand(from: 0, label: "Very Quiet", range: "Kp 0–1", color: .gray, headline: "Calm",
+               meaning: "Earth's magnetic field is calm. Aurora stays near the poles."),
+        KpBand(from: 1, label: "Quiet", range: "Kp 1–3", color: .blue, headline: "Quiet",
+               meaning: "Faint aurora in the far north — Arctic Circle, northern Alaska, Iceland."),
+        KpBand(from: 3, label: "Active", range: "Kp 3–5", color: .green, headline: "Active",
+               meaning: "Good aurora for northern Canada, Alaska and Scandinavia."),
+        KpBand(from: 5, label: "G1 Minor", range: "Kp 5–6", color: .yellow, headline: "Minor storm",
+               meaning: "Aurora may reach the northern US border, Scotland and southern Scandinavia."),
+        KpBand(from: 6, label: "G2–G3 Strong", range: "Kp 6–8", color: .orange, headline: "Strong storm",
+               meaning: "Aurora can reach mid-latitudes — the Great Lakes, northern Europe, southern Canada."),
+        KpBand(from: 8, label: "G4+ Extreme", range: "Kp 8–9", color: .red, headline: "Extreme storm",
+               meaning: "Rare. Aurora can be seen far south — the southern US and the Mediterranean."),
+    ]
+
+    static func band(for kp: Double) -> KpBand {
+        all.last { kp >= $0.from } ?? all[0]
+    }
+}
+
+/// 0–9 segmented gauge, each segment tinted by its own band, so position reads as "how stormy".
+struct KpMeter: View {
+    let kp: Double
+    var height: CGFloat = 10
+    var showLabels = true
+
+    var body: some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 3) {
+                ForEach(0..<9, id: \.self) { i in
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(kp > Double(i) ? KpBand.band(for: Double(i)).color : Color.secondary.opacity(0.15))
+                        .frame(height: height)
+                }
+            }
+            if showLabels {
+                HStack {
+                    Text("Calm")
+                    Spacer()
+                    Text("Storm")
+                }
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+            }
+        }
+    }
+}

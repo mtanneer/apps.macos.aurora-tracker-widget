@@ -69,9 +69,11 @@ struct Provider: TimelineProvider {
 
         var ovationProbability: Int? = nil
         var isDark: Bool? = nil
+        var cloudCover: Int? = nil
         if let grid = try? await ovationResult.get(), let cached = CachedLocation.load() {
             ovationProbability = grid.probability(atLat: cached.lat, lon: cached.lon)
             isDark = Daylight.isDark(lat: cached.lat, lon: cached.lon)
+            cloudCover = try? await CloudCoverFetcher.fetch(lat: cached.lat, lon: cached.lon).get()
         }
 
         let outlook = AuroraOutlook.compute(
@@ -80,6 +82,7 @@ struct Provider: TimelineProvider {
             observedAt: observed?.timeTag,
             ovationProbability: ovationProbability,
             isDark: isDark,
+            cloudCover: cloudCover,
             activeAlert: alerts.first
         )
 
@@ -128,39 +131,64 @@ struct AuroraWidgetView: View {
         .padding()
     }
 
+    // MARK: Shared pieces
+
+    /// Big % when we know the user's location, otherwise the verdict in words.
+    @ViewBuilder
+    private func headline(verdict: String, color: Color, bigSize: CGFloat, verdictSize: CGFloat) -> some View {
+        if let chance = entry.outlook?.chance {
+            Text("\(chance)%")
+                .font(.system(size: bigSize, weight: .bold, design: .rounded))
+                .foregroundStyle(color)
+                .minimumScaleFactor(0.6)
+                .lineLimit(1)
+            Text(verdict)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(color)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
+        } else {
+            Text(verdict)
+                .font(.system(size: verdictSize, weight: .bold, design: .rounded))
+                .foregroundStyle(color)
+                .minimumScaleFactor(0.7)
+                .lineLimit(3)
+        }
+    }
+
+    @ViewBuilder
+    private var cloudLine: some View {
+        if let cloud = entry.outlook?.cloudCover {
+            Label("\(cloud)% clouds", systemImage: cloud >= AuroraOutlook.cloudyFrom ? "cloud.fill" : "cloud.sun")
+                .font(.system(size: 10))
+                .foregroundStyle(cloud >= AuroraOutlook.cloudyFrom ? .orange : .secondary)
+        }
+    }
+
     // MARK: Small
 
     private var smallView: some View {
-        let (levelLabel, color) = auroraLevel(for: entry.currentKp)
-        return VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 4) {
-                Circle()
-                    .fill(color)
-                    .frame(width: 7, height: 7)
-                Text("AURORA")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
+        let band = KpBand.band(for: entry.currentKp)
+        let verdict = entry.outlook?.verdict ?? band.headline
+        let color = entry.outlook?.color ?? band.color
+        return VStack(alignment: .leading, spacing: 3) {
+            Text("AURORA NOW")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            headline(verdict: verdict, color: color, bigSize: 38, verdictSize: 20)
 
             Spacer(minLength: 0)
 
-            Text(String(format: "%.1f", entry.currentKp))
-                .font(.system(size: 50, weight: .bold, design: .rounded))
-                .foregroundStyle(color)
-                .minimumScaleFactor(0.6)
+            cloudLine
+            KpMeter(kp: entry.currentKp, height: 6, showLabels: false)
 
-            Text("Kp Index")
+            // Kp is a footnote; the word carries the meaning.
+            Text("\(band.headline) · Kp \(String(format: "%.1f", entry.currentKp))")
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
-
-            Text(levelLabel)
-                .font(.system(size: 10, weight: .semibold))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(color.opacity(0.2))
-                .foregroundStyle(color)
-                .clipShape(Capsule())
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
         .padding(12)
     }
@@ -168,47 +196,42 @@ struct AuroraWidgetView: View {
     // MARK: Medium
 
     private var mediumView: some View {
-        let verdictLabel = entry.outlook?.verdict ?? auroraLevel(for: entry.currentKp).label
-        let color = entry.outlook?.color ?? auroraLevel(for: entry.currentKp).color
+        let band = KpBand.band(for: entry.currentKp)
+        let verdict = entry.outlook?.verdict ?? band.headline
+        let color = entry.outlook?.color ?? band.color
+        let peak = entry.todaySlots.map(\.kp).max() ?? entry.currentKp
         return HStack(spacing: 14) {
 
-            // Left: current Kp
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 4) {
-                    Circle().fill(color).frame(width: 7, height: 7)
-                    Text("AURORA KP")
-                        .font(.system(size: 9, weight: .semibold))
+            VStack(alignment: .leading, spacing: 3) {
+                Text("AURORA NOW")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                headline(verdict: verdict, color: color, bigSize: 40, verdictSize: 20)
+
+                if entry.outlook?.chance == nil {
+                    Text(band.meaning)
+                        .font(.system(size: 10))
                         .foregroundStyle(.secondary)
+                        .lineLimit(3)
                 }
-
-                Text(String(format: "%.1f", entry.currentKp))
-                    .font(.system(size: 44, weight: .bold, design: .rounded))
-                    .foregroundStyle(color)
-                    .minimumScaleFactor(0.6)
-
-                Text(verdictLabel)
-                    .font(.system(size: 10, weight: .semibold))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(color.opacity(0.2))
-                    .foregroundStyle(color)
-                    .clipShape(Capsule())
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
 
                 Spacer(minLength: 0)
 
-                Text(entry.date, style: .relative)
-                    .font(.system(size: 8))
+                cloudLine
+                KpMeter(kp: entry.currentKp, height: 6, showLabels: false)
+
+                Text("\(band.headline) · Kp \(String(format: "%.1f", entry.currentKp))")
+                    .font(.system(size: 9))
                     .foregroundStyle(.secondary)
             }
-            .frame(width: 110)
+            .frame(width: 150)
 
             Divider()
 
             // Right: 8-slot bar chart for today
             VStack(alignment: .leading, spacing: 4) {
-                Text("TODAY'S FORECAST")
+                Text("TODAY'S ACTIVITY")
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(.secondary)
 
@@ -223,6 +246,9 @@ struct AuroraWidgetView: View {
                         slots: entry.todaySlots,
                         currentIndex: entry.currentSlotIndex
                     )
+                    Text("Peak: \(KpBand.band(for: peak).headline)")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(KpBand.band(for: peak).color)
                 }
             }
         }
@@ -294,7 +320,7 @@ struct AuroraWidget: Widget {
                 .widgetURL(URL(string: "auroratracker://open"))
         }
         .configurationDisplayName("Aurora Tracker")
-        .description("Live NOAA Kp index and aurora forecast.")
+        .description("Your chance of seeing aurora right now, with cloud cover.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
