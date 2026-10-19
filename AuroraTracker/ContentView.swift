@@ -55,6 +55,7 @@ class AuroraViewModel {
     var observedKp: ObservedKp? = nil
     var activeAlerts: [SpaceWeatherAlert] = []
     var ovationProbability: Int? = nil
+    var cloudCover: Int? = nil
     var outlook: AuroraOutlook? = nil
     var currentDayIndex = 0
     private var ovationGrid: OvationGrid? = nil
@@ -127,7 +128,7 @@ class AuroraViewModel {
         if case .success(let grid) = await ovationResult {
             ovationGrid = grid
         }
-        updateOutlook()
+        await refreshClouds()
 
         // A cold-launch network blip shouldn't strand the user on a stale error banner —
         // retry once automatically rather than requiring a manual refresh tap.
@@ -161,8 +162,18 @@ class AuroraViewModel {
             observedAt: observedKp?.timeTag,
             ovationProbability: probability,
             isDark: isDark,
+            cloudCover: cloudCover,
             activeAlert: activeAlerts.first
         )
+    }
+
+    /// Fetches cloud cover for the known location (if any) and recomputes the outlook.
+    func refreshClouds() async {
+        if let coord = location.lastLocation,
+           case .success(let pct) = await CloudCoverFetcher.fetch(lat: coord.latitude, lon: coord.longitude) {
+            cloudCover = pct
+        }
+        updateOutlook()
     }
 
     /// Asks for permission if still undecided, gets a fix, and refines the outlook with it.
@@ -172,8 +183,33 @@ class AuroraViewModel {
             _ = await location.requestAuthorizationAndWait()
         }
         _ = await location.fetchLocation()
-        updateOutlook()
+        await refreshClouds()
         WidgetCenter.shared.reloadAllTimelines()
+    }
+}
+
+// MARK: - Navigation
+
+enum AppSection: String, CaseIterable, Identifiable {
+    case tonight, forecast, maps, guide
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .tonight:  return "Tonight"
+        case .forecast: return "Forecast"
+        case .maps:     return "Maps"
+        case .guide:    return "What is Kp?"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .tonight:  return "moon.stars"
+        case .forecast: return "chart.bar.xaxis"
+        case .maps:     return "map"
+        case .guide:    return "questionmark.circle"
+        }
     }
 }
 
@@ -186,255 +222,169 @@ struct MapItem: Identifiable {
     let urlString: String
 }
 
+private extension View {
+    func card(tint: Color? = nil) -> some View {
+        self
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(tint.map { $0.opacity(0.10) } ?? Color.secondary.opacity(0.06))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder((tint ?? .secondary).opacity(0.25), lineWidth: tint == nil ? 0 : 1)
+            )
+    }
+}
+
 struct ContentView: View {
     @AppStorage("appTheme") private var theme: AppTheme = .system
     @State private var vm = AuroraViewModel()
     @State private var selectedMap: MapItem? = nil
-    #if os(iOS)
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    private var isCompact: Bool { horizontalSizeClass == .compact }
-    #else
-    private let isCompact = false
-    #endif
+    @State private var section: AppSection? = .tonight
+    @State private var column: NavigationSplitViewColumn = .detail
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 16) {
-                    if vm.isLoading && vm.todaySlots.isEmpty {
-                        ProgressView("Fetching aurora data…")
-                            .padding(40)
-                    } else if vm.hasError && vm.todaySlots.isEmpty {
-                        ContentUnavailableView(
-                            "Could Not Load Data",
-                            systemImage: "wifi.exclamationmark",
-                            description: Text(vm.errorMessage)
-                        )
-                        .padding(40)
-                    } else {
-                        if vm.hasError {
-                            staleDataBanner
-                        }
-                        outlookCard
-                        currentKpCard
-                        if !vm.activeAlerts.isEmpty {
-                            alertsCard
-                        }
-                        forecastCard
-                        auroraImagesCard
-                        kpScaleLegend
-                        noaaAttribution
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+        NavigationSplitView(preferredCompactColumn: $column) {
+            List(AppSection.allCases, selection: $section) { s in
+                Label(s.title, systemImage: s.icon)
+                    .badge(s == .tonight ? vm.activeAlerts.count : 0)
             }
             .navigationTitle("Aurora Tracker")
-            .toolbar {
-                ToolbarItem(placement: .automatic) {
-                    Menu {
-                        ForEach(AppTheme.allCases, id: \.self) { t in
-                            Button {
-                                theme = t
-                            } label: {
-                                Label(t.label, systemImage: t.icon)
-                            }
-                            .disabled(theme == t)
-                        }
-                    } label: {
-                        Image(systemName: theme.icon)
-                    }
-                    .help("Appearance")
-                }
-                ToolbarItem(placement: .automatic) {
-                    Button {
-                        Task { await vm.fetch() }
-                    } label: {
-                        if vm.isLoading {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Image(systemName: "arrow.clockwise")
-                        }
-                    }
-                    .disabled(vm.isLoading)
-                    .help("Refresh aurora data")
-                }
-            }
-            .task {
-                async let fetched: Void = vm.fetch()
-                await vm.refreshLocation()
-                await fetched
-            }
+            .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 240)
+            .safeAreaInset(edge: .bottom) { noaaAttribution }
+        } detail: {
+            detail
         }
         #if os(macOS)
-        .frame(minWidth: 680, minHeight: 620)
+        .frame(minWidth: 820, minHeight: 620)
         #endif
         .sheet(item: $selectedMap) { map in
             MapDetailView(map: map)
         }
     }
 
-    // MARK: - Current Kp Card
-
-    private var currentKpCard: some View {
-        let (levelLabel, color) = auroraLevel(for: vm.currentKp)
-        return Group {
-            if isCompact {
-                compactKpCard(levelLabel: levelLabel, color: color)
-            } else {
-                regularKpCard(levelLabel: levelLabel, color: color)
-            }
-        }
-        .padding(16)
-        .background(color.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(color.opacity(0.25), lineWidth: 1)
-        )
-    }
-
-    private func compactKpCard(levelLabel: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label("Current Kp Index (\(TimeZone.current.abbreviation() ?? "local"))", systemImage: "aqi.medium")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(String(format: "%.2f", vm.currentKp))
-                    .font(.system(size: 64, weight: .bold, design: .rounded))
-                    .foregroundStyle(color)
-                Text("Kp")
-                    .font(.title2)
-                    .foregroundStyle(color.opacity(0.7))
-                    .padding(.bottom, 6)
-                Spacer()
-                VStack(alignment: .trailing, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Circle().fill(color).frame(width: 9, height: 9)
-                        Text(levelLabel)
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(color)
-                    }
-                    if let observed = vm.observedKp {
-                        Text("Observed: \(String(format: "%.1f", observed.value))")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+    private var detail: some View {
+        let current = section ?? .tonight
+        return ScrollView {
+            VStack(spacing: 16) {
+                if vm.isLoading && vm.todaySlots.isEmpty {
+                    ProgressView("Fetching aurora data…")
+                        .padding(40)
+                } else if vm.hasError && vm.todaySlots.isEmpty {
+                    ContentUnavailableView(
+                        "Could Not Load Data",
+                        systemImage: "wifi.exclamationmark",
+                        description: Text(vm.errorMessage)
+                    )
+                    .padding(40)
+                } else {
+                    if vm.hasError { staleDataBanner }
+                    switch current {
+                    case .tonight:  tonightPage
+                    case .forecast: forecastPage
+                    case .maps:     mapsPage
+                    case .guide:    guidePage
                     }
                 }
             }
-
-            Divider().opacity(0.3)
-
-            HStack(spacing: 0) {
-                compactStat(title: "Today's Peak", value: String(format: "%.1f Kp", vm.currentDaySlots.map(\.kp).max() ?? 0), color: color)
-                Spacer()
-                compactStat(title: "Today's Avg", value: String(format: "%.1f Kp", vm.currentDaySlots.isEmpty ? 0 : vm.currentDaySlots.reduce(0) { $0 + $1.kp } / Double(vm.currentDaySlots.count)), color: color)
-                Spacer()
-                if let d1 = vm.dateLabels.first {
-                    compactStat(title: "Start Date", value: d1, color: .secondary)
-                }
-            }
+            .padding(16)
+            .frame(maxWidth: 900)
+            .frame(maxWidth: .infinity)
         }
-    }
-
-    private func compactStat(title: String, value: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.system(size: 10))
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(color)
-        }
-    }
-
-    private func regularKpCard(levelLabel: String, color: Color) -> some View {
-        HStack(alignment: .top, spacing: 24) {
-            VStack(alignment: .leading, spacing: 6) {
-                Label("Current Kp Index (\(TimeZone.current.abbreviation() ?? "local"))", systemImage: "aqi.medium")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(String(format: "%.2f", vm.currentKp))
-                        .font(.system(size: 72, weight: .bold, design: .rounded))
-                        .foregroundStyle(color)
-                    Text("Kp")
-                        .font(.title2)
-                        .foregroundStyle(color.opacity(0.7))
-                        .padding(.bottom, 8)
+        .navigationTitle(current.title)
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Menu {
+                    ForEach(AppTheme.allCases, id: \.self) { t in
+                        Button {
+                            theme = t
+                        } label: {
+                            Label(t.label, systemImage: t.icon)
+                        }
+                        .disabled(theme == t)
+                    }
+                } label: {
+                    Image(systemName: theme.icon)
                 }
-
-                HStack(spacing: 8) {
-                    Circle().fill(color).frame(width: 10, height: 10)
-                    Text(levelLabel)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(color)
-                }
-                if let observed = vm.observedKp {
-                    Text("Observed: \(String(format: "%.1f", observed.value)) Kp")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                .help("Appearance")
             }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 8) {
-                if !vm.rangeString.isEmpty {
-                    Text(vm.rangeString)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                VStack(alignment: .trailing, spacing: 4) {
-                    statRow(title: "Today's Peak", value: String(format: "%.1f Kp", vm.currentDaySlots.map(\.kp).max() ?? 0))
-                    statRow(title: "Today's Avg", value: String(format: "%.1f Kp", vm.currentDaySlots.isEmpty ? 0 : vm.currentDaySlots.reduce(0) { $0 + $1.kp } / Double(vm.currentDaySlots.count)))
-                    if let d1 = vm.dateLabels.first {
-                        statRow(title: "Forecast Start", value: d1)
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    Task { await vm.fetch() }
+                } label: {
+                    if vm.isLoading {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
                     }
                 }
+                .disabled(vm.isLoading)
+                .help("Refresh aurora data")
             }
         }
-    }
-
-    private func statRow(title: String, value: String) -> some View {
-        HStack(spacing: 8) {
-            Text(title).foregroundStyle(.secondary)
-            Text(value).fontWeight(.semibold)
+        .task {
+            async let fetched: Void = vm.fetch()
+            await vm.refreshLocation()
+            await fetched
         }
-        .font(.caption)
     }
 
-    // MARK: - Tonight's Outlook Card
+    // MARK: - Tonight page
+
+    private var tonightPage: some View {
+        VStack(spacing: 16) {
+            if !vm.activeAlerts.isEmpty { alertsBanner }
+            outlookCard
+            activityCard
+        }
+    }
 
     private var outlookCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Tonight's Outlook")
-                    .font(.headline)
-                Spacer()
-                if let outlook = vm.outlook {
-                    Text(outlook.verdict)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(outlook.color)
-                }
-            }
+        let color = vm.outlook?.color ?? .secondary
+        return VStack(alignment: .leading, spacing: 12) {
+            Label("Aurora right now", systemImage: "moon.stars.fill")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
 
             if let outlook = vm.outlook {
+                if let chance = outlook.chance {
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text("\(chance)%")
+                            .font(.system(size: 56, weight: .bold, design: .rounded))
+                            .foregroundStyle(color)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(outlook.verdict)
+                                .font(.title3.weight(.bold))
+                                .foregroundStyle(color)
+                            Text("chance of aurora overhead")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } else {
+                    Text(outlook.verdict)
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .foregroundStyle(color)
+                }
+
+                if let cloud = outlook.cloudCover {
+                    Label("\(cloud)% cloud cover", systemImage: cloud >= AuroraOutlook.cloudyFrom ? "cloud.fill" : "cloud.sun")
+                        .font(.callout)
+                        .foregroundStyle(cloud >= AuroraOutlook.cloudyFrom ? .orange : .secondary)
+                }
+
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(outlook.reasoning, id: \.self) { line in
                         HStack(alignment: .top, spacing: 6) {
-                            Text("•").foregroundStyle(.secondary)
-                            Text(line).foregroundStyle(.secondary)
+                            Text("•")
+                            Text(line)
                         }
-                        .font(.caption)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                     }
                 }
+            } else {
+                ProgressView()
             }
 
             if vm.location.status != .authorized {
@@ -458,21 +408,57 @@ struct ContentView: View {
                 .controlSize(.small)
             }
         }
-        .padding(16)
-        .background((vm.outlook?.color ?? .secondary).opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder((vm.outlook?.color ?? .secondary).opacity(0.25), lineWidth: 1)
-        )
+        .card(tint: color)
     }
 
-    // MARK: - Active Alerts Card
+    private var activityCard: some View {
+        let band = KpBand.band(for: vm.currentKp)
+        let peak = vm.currentDaySlots.map(\.kp).max() ?? 0
+        let peakBand = KpBand.band(for: peak)
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Sky activity right now", systemImage: "waveform.path.ecg")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                // Kp stays visible, but as a footnote — the words above carry the meaning.
+                Text("Kp \(String(format: "%.1f", vm.currentKp))")
+                    .font(.caption.monospacedDigit())
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(band.color.opacity(0.15))
+                    .clipShape(Capsule())
+                    .help("Kp is the 0–9 scale of how disturbed Earth's magnetic field is. See “What is Kp?”")
+            }
 
-    private var alertsCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label("Active Alerts", systemImage: "exclamationmark.triangle.fill")
-                .font(.headline)
+            Text(band.headline)
+                .font(.title.weight(.bold))
+                .foregroundStyle(band.color)
+            Text(band.meaning)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+
+            KpMeter(kp: vm.currentKp)
+
+            Divider().opacity(0.4)
+
+            HStack {
+                Text("Expected peak today")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(peakBand.headline) · Kp \(String(format: "%.1f", peak))")
+                    .fontWeight(.semibold)
+                    .foregroundStyle(peakBand.color)
+            }
+            .font(.caption)
+        }
+        .card()
+    }
+
+    private var alertsBanner: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Active alerts", systemImage: "exclamationmark.triangle.fill")
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.red)
 
             ForEach(vm.activeAlerts) { alert in
@@ -484,111 +470,87 @@ struct ContentView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
-                .padding(.vertical, 2)
             }
         }
-        .padding(16)
-        .background(Color.red.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(Color.red.opacity(0.25), lineWidth: 1)
-        )
+        .card(tint: .red)
     }
 
-    // MARK: - Forecast Chart Card
+    // MARK: - Forecast page
 
-    private var forecastCard: some View {
+    private var forecastPage: some View {
         VStack(alignment: .leading, spacing: 14) {
-            if isCompact {
-                Text("3-Day Kp Forecast")
-                    .font(.headline)
-                if vm.dateLabels.count >= 3 {
-                    Picker("Day", selection: $vm.selectedDay) {
-                        Text(vm.dateLabels[0]).tag(0)
-                        Text(vm.dateLabels[1]).tag(1)
-                        Text(vm.dateLabels[2]).tag(2)
-                    }
-                    .pickerStyle(.segmented)
+            Text("3-Day Forecast")
+                .font(.headline)
+
+            if vm.dateLabels.count >= 3 {
+                Picker("Day", selection: $vm.selectedDay) {
+                    ForEach(0..<3, id: \.self) { Text(vm.dateLabels[$0]).tag($0) }
                 }
-            } else {
-                HStack {
-                    Text("3-Day Kp Forecast")
-                        .font(.headline)
-                    Spacer()
-                    if vm.dateLabels.count >= 3 {
-                        Picker("Day", selection: $vm.selectedDay) {
-                            Text(vm.dateLabels[0]).tag(0)
-                            Text(vm.dateLabels[1]).tag(1)
-                            Text(vm.dateLabels[2]).tag(2)
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(width: 300)
-                    }
-                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
             }
 
             if !vm.selectedSlots.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    Chart {
-                        ForEach(vm.selectedSlots) { slot in
-                            BarMark(
-                                x: .value("Time", slot.label),
-                                y: .value("Kp", slot.kp),
-                                width: .ratio(0.65)
+                Chart {
+                    ForEach(vm.selectedSlots) { slot in
+                        BarMark(
+                            x: .value("Time", slot.label),
+                            y: .value("Kp", slot.kp),
+                            width: .ratio(0.65)
+                        )
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [auroraColor(for: slot.kp), auroraColor(for: slot.kp).opacity(0.6)],
+                                startPoint: .top, endPoint: .bottom
                             )
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [auroraColor(for: slot.kp), auroraColor(for: slot.kp).opacity(0.6)],
-                                    startPoint: .top, endPoint: .bottom
-                                )
-                            )
-                            .cornerRadius(3)
-                        }
+                        )
+                        .cornerRadius(3)
+                    }
 
-                        RuleMark(y: .value("G1 (Kp5)", 5.0))
-                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [5, 3]))
-                            .foregroundStyle(.yellow.opacity(0.8))
-                            .annotation(position: .top, alignment: .leading) {
-                                Text("G1").font(.system(size: 9)).foregroundStyle(.yellow)
-                            }
-                        RuleMark(y: .value("G2 (Kp6)", 6.0))
-                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [5, 3]))
-                            .foregroundStyle(.orange.opacity(0.8))
-                            .annotation(position: .top, alignment: .leading) {
-                                Text("G2").font(.system(size: 9)).foregroundStyle(.orange)
-                            }
-                        RuleMark(y: .value("G3 (Kp7)", 7.0))
-                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [5, 3]))
-                            .foregroundStyle(.red.opacity(0.8))
-                            .annotation(position: .top, alignment: .leading) {
-                                Text("G3").font(.system(size: 9)).foregroundStyle(.red)
-                            }
-                    }
-                    .frame(height: 200)
-                    .chartYScale(domain: 0...9)
-                    .chartYAxis {
-                        AxisMarks(position: .trailing, values: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) { _ in
-                            AxisGridLine()
-                            AxisValueLabel()
+                    RuleMark(y: .value("G1 (Kp5)", 5.0))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [5, 3]))
+                        .foregroundStyle(.yellow.opacity(0.8))
+                        .annotation(position: .top, alignment: .leading) {
+                            Text("G1").font(.system(size: 9)).foregroundStyle(.yellow)
                         }
-                    }
-                    .chartXAxis {
-                        AxisMarks { _ in
-                            AxisGridLine()
-                            AxisValueLabel(orientation: .vertical)
+                    RuleMark(y: .value("G2 (Kp6)", 6.0))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [5, 3]))
+                        .foregroundStyle(.orange.opacity(0.8))
+                        .annotation(position: .top, alignment: .leading) {
+                            Text("G2").font(.system(size: 9)).foregroundStyle(.orange)
                         }
+                    RuleMark(y: .value("G3 (Kp7)", 7.0))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [5, 3]))
+                        .foregroundStyle(.red.opacity(0.8))
+                        .annotation(position: .top, alignment: .leading) {
+                            Text("G3").font(.system(size: 9)).foregroundStyle(.red)
+                        }
+                }
+                .frame(height: 220)
+                .chartYScale(domain: 0...9)
+                .chartYAxis {
+                    AxisMarks(position: .trailing, values: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) { _ in
+                        AxisGridLine()
+                        AxisValueLabel()
                     }
-                    .padding(.leading, 24)
-                    .padding(.bottom, 8)
+                }
+                .chartXAxis {
+                    AxisMarks { _ in
+                        AxisGridLine()
+                        AxisValueLabel(orientation: .vertical)
+                    }
+                }
 
-                    HStack(spacing: isCompact ? 10 : 20) {
-                        summaryBadge(label: "Peak", value: String(format: "%.1f", vm.peakKp), color: auroraColor(for: vm.peakKp))
-                        summaryBadge(label: "Average", value: String(format: "%.1f", vm.avgKp), color: auroraColor(for: vm.avgKp))
-                        summaryBadge(label: "Storm Level", value: auroraLevel(for: vm.peakKp).label, color: auroraColor(for: vm.peakKp))
-                        Spacer()
-                    }
-                    .padding(.top, 4)
+                HStack(spacing: 10) {
+                    summaryBadge(label: "Peak", kp: vm.peakKp)
+                    summaryBadge(label: "Average", kp: vm.avgKp)
+                    Spacer()
+                }
+
+                // Legend lives with the chart it explains.
+                Divider().opacity(0.4)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 8)], alignment: .leading, spacing: 8) {
+                    ForEach(KpBand.all, id: \.label) { legendChip($0) }
                 }
             } else {
                 Text("No forecast data available.")
@@ -597,28 +559,44 @@ struct ContentView: View {
                     .padding()
             }
         }
-        .padding(16)
-        .background(.secondary.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .card()
     }
 
-    private func summaryBadge(label: String, value: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+    private func summaryBadge(label: String, kp: Double) -> some View {
+        let band = KpBand.band(for: kp)
+        return VStack(alignment: .leading, spacing: 2) {
             Text(label)
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
-            Text(value)
+            Text("\(band.headline) · Kp \(String(format: "%.1f", kp))")
                 .font(.caption)
                 .fontWeight(.semibold)
-                .foregroundStyle(color)
+                .foregroundStyle(band.color)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(color.opacity(0.1))
+        .background(band.color.opacity(0.1))
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
-    // MARK: - Aurora Images Card
+    private func legendChip(_ band: KpBand) -> some View {
+        HStack(spacing: 6) {
+            RoundedRectangle(cornerRadius: 3)
+                .fill(band.color)
+                .frame(width: 12, height: 12)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(band.label).font(.caption).fontWeight(.semibold)
+                Text(band.range).font(.system(size: 9)).foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(band.color.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    // MARK: - Maps page
 
     private let mapItems = [
         MapItem(title: "Tonight's Viewline", subtitle: "Areas likely to see aurora tonight",
@@ -629,34 +607,15 @@ struct ContentView: View {
                 urlString: "https://services.swpc.noaa.gov/images/station-k-index.png"),
     ]
 
-    private var mapGridColumns: [GridItem] {
-        #if os(iOS)
-        let count = isCompact ? 1 : 2
-        #else
-        let count = 3
-        #endif
-        return Array(repeating: GridItem(.flexible()), count: count)
-    }
-
-    private var auroraImagesCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Aurora Maps")
-                .font(.headline)
-
-            LazyVGrid(columns: mapGridColumns, spacing: 12) {
-                ForEach(mapItems) { map in
-                    auroraImageTile(map: map)
-                }
-            }
+    private var mapsPage: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 16, alignment: .top)], spacing: 16) {
+            ForEach(mapItems) { auroraImageTile(map: $0) }
         }
-        .padding(16)
-        .background(.secondary.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     private func auroraImageTile(map: MapItem) -> some View {
         Button { selectedMap = map } label: {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(map.title)
@@ -673,101 +632,72 @@ struct ContentView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                if let url = URL(string: map.urlString) {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                        case .failure:
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color.secondary.opacity(0.1))
-                                    .frame(minHeight: 80)
-                                Label("Image unavailable", systemImage: "photo.slash")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                // Fixed frame so every tile is the same size whatever the source image's ratio;
+                // .fit inside it so no map data is cropped.
+                Color.secondary.opacity(0.1)
+                    .aspectRatio(4.0 / 3.0, contentMode: .fit)
+                    .overlay {
+                        if let url = URL(string: map.urlString) {
+                            AsyncImage(url: url) { phase in
+                                switch phase {
+                                case .success(let image):
+                                    image.resizable().aspectRatio(contentMode: .fit)
+                                case .failure:
+                                    Label("Image unavailable", systemImage: "photo.slash")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                default:
+                                    ProgressView()
+                                }
                             }
-                        case .empty:
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color.secondary.opacity(0.1))
-                                    .frame(minHeight: 80)
-                                ProgressView()
-                            }
-                        @unknown default:
-                            EmptyView()
                         }
                     }
-                }
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
             }
-            .padding(12)
-            .background(Color.primary.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(Color.secondary.opacity(0.15), lineWidth: 1)
-            )
+            .card()
         }
         .buttonStyle(.plain)
         .help("Click to expand")
     }
 
-    // MARK: - Kp Scale Legend
+    // MARK: - Guide page
 
-    private var kpScaleLegend: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Kp / G-Scale Reference")
-                .font(.headline)
+    private var guidePage: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("What is Kp?")
+                    .font(.headline)
+                Text("Kp is a 0–9 score for how disturbed Earth's magnetic field is. Higher means a stronger geomagnetic storm, which pushes the aurora further from the poles and makes it brighter. Scores of 5 and up are called storms and get a “G” rating (G1 to G5).")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                Text("Kp is global — what you'll actually see depends on how far north (or south) you are and how dark and clear the sky is. That's why Tonight combines Kp with your location.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            .card()
 
-            if isCompact {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                    ForEach(legendItems, id: \.label) { item in
-                        legendBadge(item: item)
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Scale at a glance")
+                    .font(.headline)
+                ForEach(KpBand.all, id: \.label) { band in
+                    HStack(alignment: .top, spacing: 10) {
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(band.color)
+                            .frame(width: 6)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(band.headline) · \(band.range)")
+                                .font(.subheadline.weight(.semibold))
+                            Text(band.meaning)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 0)
                     }
-                }
-            } else {
-                HStack(spacing: 10) {
-                    ForEach(legendItems, id: \.label) { item in
-                        legendBadge(item: item)
-                    }
-                    Spacer()
+                    .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            .card()
         }
-        .padding(16)
-        .background(.secondary.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-    }
-
-    private func legendBadge(item: (label: String, range: String, color: Color)) -> some View {
-        HStack(spacing: 6) {
-            RoundedRectangle(cornerRadius: 3)
-                .fill(item.color)
-                .frame(width: 12, height: 12)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(item.label).font(.caption).fontWeight(.semibold)
-                Text(item.range).font(.system(size: 9)).foregroundStyle(.secondary)
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .frame(maxWidth: isCompact ? .infinity : nil, alignment: .leading)
-        .background(item.color.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-
-    private var legendItems: [(label: String, range: String, color: Color)] {
-        [
-            ("Very Quiet", "Kp 0-1", .gray),
-            ("Quiet", "Kp 1-3", .blue),
-            ("Active", "Kp 3-5", .green),
-            ("G1 Minor", "Kp 5-6", .yellow),
-            ("G2-3 Strong", "Kp 6-8", .orange),
-            ("G4+ Extreme", "Kp 8-9", .red),
-        ]
     }
 
     // MARK: - Stale Data Banner
@@ -800,31 +730,26 @@ struct ContentView: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
-    // MARK: - NOAA Attribution
+    // MARK: - NOAA Attribution (sidebar footer)
 
     private var noaaAttribution: some View {
-        VStack(spacing: 4) {
+        VStack(alignment: .leading, spacing: 4) {
             Link(destination: URL(string: "https://www.swpc.noaa.gov")!) {
-                HStack(spacing: 4) {
-                    Image(systemName: "info.circle")
-                    Text("Data provided by NOAA Space Weather Prediction Center")
-                }
+                Label("Data: NOAA SWPC", systemImage: "info.circle")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Link("Weather data by Open-Meteo.com", destination: URL(string: "https://open-meteo.com")!)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-            }
             if let lastUpdated = vm.lastUpdated {
-                Text("Updated \(lastUpdated, style: .relative) · refreshes every 30 minutes")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            } else {
-                Text("Forecasts update every 30 minutes")
+                Text("Updated \(lastUpdated, style: .relative) ago")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 4)
-        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
     }
 }
 

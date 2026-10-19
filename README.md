@@ -40,7 +40,7 @@ No `--no-quarantine` flag is needed — releases are signed with Developer ID an
 - Click to open the full dashboard app
 
 ### App Dashboard
-- **Tonight's Outlook card**: Combined verdict (e.g. "Good Chance Tonight", "Active Alert — Check Now") built from observed Kp, forecast Kp, active NOAA alerts, and — with location permission — your local aurora probability from the Ovation grid
+- **Tonight's Outlook card**: Combined verdict (e.g. "Good Chance Now", "Active Alert — Check Now") built from observed Kp, forecast Kp, active NOAA alerts, and — with location permission — your local aurora probability from the Ovation grid
 - **Current Kp card**: Live forecast Kp reading tied to the current UTC 3-hour window, plus the latest *observed* (actual, not forecast) Kp side by side, today's peak and average
 - **Active Alerts card**: Real NOAA geomagnetic K-index alert messages issued in the last 24 hours (only shown when present)
 - **3-day forecast chart**: Bar chart for all 8 time slots per day; switch between days with a segmented picker; G1/G2/G3 storm thresholds overlaid
@@ -50,17 +50,18 @@ No `--no-quarantine` flag is needed — releases are signed with Developer ID an
 - Stale-data banner (tappable to retry) when a fetch fails but prior data is still shown; auto-retries once in the background
 
 ### Location (optional)
-The app can use your coarse location (rounded to the nearest degree, matching the Ovation grid's resolution) to compute a location-specific aurora probability. Requires location permission — the app degrades gracefully to a Kp-only outlook if permission isn't granted. The last-known location is shared with the widget via an App Group so the widget can compute the same outlook without prompting for permission itself.
+The app can use your coarse location (rounded to the nearest degree, matching the Ovation grid's resolution) to compute a location-specific aurora probability. Requires location permission — the app degrades gracefully to a Kp-only outlook if permission isn't granted. The last-known location is shared with the widget via an App Group so the widget can compute the same outlook without prompting for permission itself. To show cloud cover, that same rounded-to-the-degree location (plus your IP address, as with any web request) is sent to Open-Meteo; no other third party receives it.
 
 ## Data Source
 
-All data is fetched from [NOAA Space Weather Prediction Center (SWPC)](https://www.swpc.noaa.gov/):
+Space weather data is fetched from [NOAA Space Weather Prediction Center (SWPC)](https://www.swpc.noaa.gov/). Cloud cover is the one exception: weather data by [Open-Meteo.com](https://open-meteo.com/) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), free non-commercial tier, no API key). If the app is ever monetized, Open-Meteo's paid plan is required.
 
 | Feed | URL | Used for |
 |---|---|---|
 | 3-day Kp forecast (text) | `services.swpc.noaa.gov/text/3-day-geomag-forecast.txt` | Forecast chart, current Kp |
 | Observed Kp (JSON) | `services.swpc.noaa.gov/products/noaa-planetary-k-index.json` | Actual measured Kp vs. forecast |
 | Ovation aurora probability grid (JSON) | `services.swpc.noaa.gov/json/ovation_aurora_latest.json` | Location-based aurora chance |
+| Current cloud cover (JSON) | `api.open-meteo.com/v1/forecast?current=cloud_cover` | Cloud cover at your location; "Likely Hidden by Clouds" verdict (third-party, not NOAA) |
 | Space weather alerts (JSON) | `services.swpc.noaa.gov/products/alerts.json` | Active Alerts card, outlook verdict |
 | Tonight's viewline forecast (image) | `services.swpc.noaa.gov/experimental/images/aurora_dashboard/...` | Aurora Maps |
 | Ovation aurora map (image) | `services.swpc.noaa.gov/images/animations/ovation/north/latest.jpg` | Aurora Maps |

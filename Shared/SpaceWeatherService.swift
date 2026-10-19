@@ -76,7 +76,7 @@ enum ObservedKpFetcher {
 // MARK: - Ovation Aurora Probability Grid
 
 struct OvationGrid {
-    /// Flat array of [longitude(0...359), latitude(-90...90), probability(0...9 or higher)].
+    /// Flat array of [longitude(0...359), latitude(-90...90), aurora probability in percent (0...100)].
     private let coordinates: [[Double]]
     let observationTime: Date
 
@@ -194,5 +194,35 @@ enum AlertsFetcher {
             }
         }
         return nil
+    }
+}
+
+// MARK: - Cloud Cover (Open-Meteo)
+
+private struct CloudResponse: Decodable {
+    struct Current: Decodable { let cloud_cover: Double }
+    let current: Current
+}
+
+enum CloudCoverFetcher {
+    /// Current cloud cover in percent (0...100) near the given coordinate.
+    /// Coordinates are rounded to the nearest degree before leaving the device (third-party API).
+    static func fetch(lat: Double, lon: Double) async -> Result<Int, NOAAFetchError> {
+        guard let url = URL(string: "https://api.open-meteo.com/v1/forecast?latitude=\(lat.rounded())&longitude=\(lon.rounded())&current=cloud_cover") else {
+            return .failure(.malformedData)
+        }
+        switch await fetchWithRetry(url) {
+        case .failure(let error): return .failure(error)
+        case .success(let data):  return parse(data)
+        }
+    }
+
+    static func parse(_ data: Data) -> Result<Int, NOAAFetchError> {
+        guard let r = try? JSONDecoder().decode(CloudResponse.self, from: data),
+              (0...100).contains(r.current.cloud_cover) else {
+            logger.error("Could not parse cloud cover response")
+            return .failure(.malformedData)
+        }
+        return .success(Int(r.current.cloud_cover.rounded()))
     }
 }
