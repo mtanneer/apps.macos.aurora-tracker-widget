@@ -49,6 +49,12 @@ if [[ -z "${SKIP_NOTARIZE:-}" ]]; then
     rm -f "$ZIP" && ditto -c -k --keepParent "$APP" "$ZIP"   # re-zip with the stapled ticket
     spctl -a -vv "$APP"
 fi
+# Build copies register their widget extension under the same bundle ID and can shadow the installed one.
+LSR=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+for a in "$OUT/dd/Build/Products/Release/AuroraTracker.app" "$APP"; do
+    pluginkit -r "$a"/Contents/PlugIns/*.appex 2>/dev/null || true
+    "$LSR" -u "$PWD/$a" 2>/dev/null || true
+done
 echo "version: $V"
 echo "zip:     $ZIP"
 echo "sha256:  $(shasum -a 256 "$ZIP" | cut -d' ' -f1)"
