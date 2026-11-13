@@ -1,0 +1,8 @@
+# devhub project manifest. Schema: ~/dev/tools.all.devhub/SCHEMA.md
+status = "active"
+purpose = "macOS app and widget showing NOAA Kp index and aurora chance for your location"
+tags = ["aurora", "weather"]
+deploy = "brew cask (mtanneer/tools)"
+depends_on = []
+next = []
+# evidence: README.md, CLAUDE.md, _batch4.json
